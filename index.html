@@ -1,0 +1,367 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>???嚚TML5 Canvas ??亙</title>
+  <style>
+    :root {
+      --bg: #07121f;
+      --panel: rgba(255, 255, 255, 0.08);
+      --panel-strong: rgba(255, 255, 255, 0.13);
+      --line: rgba(153, 233, 255, 0.3);
+      --text: #f0fbff;
+      --muted: #a9bfcc;
+      --cyan: #7de8ff;
+      --mint: #93f2bc;
+      --rose: #ff8db7;
+      --gold: #ffd36f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background:
+        radial-gradient(circle at 14% 14%, rgba(125, 232, 255, 0.18), transparent 24rem),
+        radial-gradient(circle at 86% 20%, rgba(255, 141, 183, 0.15), transparent 22rem),
+        radial-gradient(circle at 60% 92%, rgba(147, 242, 188, 0.13), transparent 24rem),
+        linear-gradient(135deg, #07121f 0%, #11142a 48%, #061a25 100%);
+      overflow-x: hidden;
+    }
+
+    .page {
+      width: min(1180px, 94vw);
+      margin: 0 auto;
+      padding: 42px 0 48px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 24px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)),
+        rgba(4, 12, 25, 0.68);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35), inset 0 0 50px rgba(125, 232, 255, 0.06);
+      backdrop-filter: blur(16px);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 5vw, 4.6rem);
+      line-height: 1;
+      letter-spacing: 0;
+      text-shadow: 0 0 28px rgba(125, 232, 255, 0.32);
+    }
+
+    .hero p {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.12rem);
+      line-height: 1.8;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(92px, 1fr));
+      gap: 10px;
+      min-width: 300px;
+    }
+
+    .metric {
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.07);
+      text-align: center;
+    }
+
+    .metric strong {
+      display: block;
+      color: var(--cyan);
+      font-size: 1.9rem;
+      line-height: 1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 22px;
+    }
+
+    .card {
+      position: relative;
+      min-height: 255px;
+      padding: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 16px;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.035)),
+        rgba(5, 15, 31, 0.78);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(125, 232, 255, 0.46);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)),
+        rgba(7, 20, 39, 0.86);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: -80px auto auto -80px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: var(--glow);
+      opacity: 0.28;
+      filter: blur(6px);
+      pointer-events: none;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      color: #dff8ff;
+      background: rgba(255, 255, 255, 0.07);
+      font-size: 0.82rem;
+    }
+
+    .icon {
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      margin: 18px 0 14px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      color: #06121f;
+      background: var(--accent);
+      box-shadow: 0 0 28px var(--shadow);
+      font-weight: 900;
+      font-size: 1rem;
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 1.22rem;
+      line-height: 1.25;
+    }
+
+    .card p {
+      min-height: 72px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 0.94rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 9px 12px;
+      border: 1px solid rgba(125, 232, 255, 0.36);
+      border-radius: 9px;
+      background: rgba(125, 232, 255, 0.12);
+      color: var(--text);
+      font-size: 0.92rem;
+      transition: transform 160ms ease, background 160ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      background: rgba(125, 232, 255, 0.2);
+    }
+
+    .btn.secondary {
+      border-color: rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.07);
+      color: #d6e7ee;
+    }
+
+    .note {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.055);
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    @media (max-width: 920px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .summary {
+        min-width: 0;
+      }
+
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px) {
+      .page {
+        width: 95vw;
+        padding-top: 18px;
+      }
+
+      .hero {
+        padding: 18px;
+      }
+
+      .summary,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <h1>???</h1>
+        <p>?ㄐ?葉?渡? 7 ??湔?瑁???HTML5 Canvas ?嚗??急?蝺???鼓?怒璅雿?憟??I 撠店??RAG ???????脤??隤芣?瑼??拙???撅內?玨??撽? AI 撠???飛??/p>
+      </div>
+      <div class="summary">
+        <div class="metric"><strong>7</strong><span>????/span></div>
+        <div class="metric"><strong>7</strong><span>隞?read.md</span></div>
+        <div class="metric"><strong>0</strong><span>憭憟辣</span></div>
+      </div>
+    </section>
+
+    <section class="grid" aria-label="?皜">
+      <article class="card" style="--accent:#69e7ff;--shadow:rgba(105,231,255,.42);--glow:radial-gradient(circle,rgba(105,231,255,.75),transparent 65%);">
+        <span class="tag">01嚚?????/span>
+        <div class="icon">SHIP</div>
+        <h2>???脩?</h2>
+        <p>?批憭芰征?孵??鈭綽?擃??征蝘餃????賢潦??貉???漲????/p>
+        <div class="actions">
+          <a class="btn" href="01_撠??/???脩?_HTML5_Canvas_撠??/index.html">???</a>
+          <a class="btn secondary" href="01_撠??/???脩?_HTML5_Canvas_撠??/read.md">?亦? read.md</a>
+        </div>
+      </article>
+
+      <article class="card" style="--accent:#ff8db7;--shadow:rgba(255,141,183,.42);--glow:radial-gradient(circle,rgba(255,141,183,.75),transparent 65%);">
+        <span class="tag">02嚚?蝺?????/span>
+        <div class="icon">HEART</div>
+        <h2>敹?瘜⊥部</h2>
+        <p>?批???園?蝚?瘜⊥部嚗??部瘜∴??剝?敶抵?????瘚桀??怒?/p>
+        <div class="actions">
+          <a class="btn" href="02_?????/敹?瘜⊥部_HTML5_Canvas_?????/index.html">???</a>
+          <a class="btn secondary" href="02_?????/敹?瘜⊥部_HTML5_Canvas_?????/read.md">?亦? read.md</a>
+        </div>
+      </article>
+
+      <article class="card" style="--accent:#ffd36f;--shadow:rgba(255,211,111,.42);--glow:radial-gradient(circle,rgba(255,211,111,.75),transparent 65%);">
+        <span class="tag">03嚚I NPC 撠店?</span>
+        <div class="icon">NPC</div>
+        <h2>?箸?∪?撠汗??/h2>
+        <p>?冽??蝝ｇ??? NPC 撠店嚗?祆?閬?撘頂蝯望閰Ｘ??閮?/p>
+        <div class="actions">
+          <a class="btn" href="03_AI_NPC撠店?/?箸?∪?撠汗?︵HTML5_Canvas_AI_NPC撠店?/index.html">???</a>
+          <a class="btn secondary" href="03_AI_NPC撠店?/?箸?∪?撠汗?︵HTML5_Canvas_AI_NPC撠店?/read.md">?亦? read.md</a>
+        </div>
+      </article>
+
+      <article class="card" style="--accent:#93f2bc;--shadow:rgba(147,242,188,.42);--glow:radial-gradient(circle,rgba(147,242,188,.75),transparent 65%);">
+        <span class="tag">04嚚AG ???</span>
+        <div class="icon">RAG</div>
+        <h2>?亥????ａ</h2>
+        <p>擏?憭芰征?寥脣?亥???嚗芋?祆炎蝝Ｕ?皞??曇??渡?????RAG 瘚???/p>
+        <div class="actions">
+          <a class="btn" href="04_RAG???/?亥????ａ_HTML5_Canvas_RAG???/index.html">???</a>
+          <a class="btn secondary" href="04_RAG???/?亥????ａ_HTML5_Canvas_RAG???/read.md">?亦? read.md</a>
+        </div>
+      </article>
+
+      <article class="card" style="--accent:#c7a7ff;--shadow:rgba(199,167,255,.42);--glow:radial-gradient(circle,rgba(199,167,255,.75),transparent 65%);">
+        <span class="tag">05嚚??銵???/span>
+        <div class="icon">ART</div>
+        <h2>憭Ｘ?怠?</h2>
+        <p>?芰蝜芰??摮??雿??舀銝?祉蝑蔗?寧??????屆?格??/p>
+        <div class="actions">
+          <a class="btn" href="05_?菜????/01_憭Ｘ?怠?_?芰蝎?蝜芰/index.html">???</a>
+          <a class="btn secondary" href="05_?菜????/01_憭Ｘ?怠?_?芰蝎?蝜芰/read.md">?亦? read.md</a>
+        </div>
+      </article>
+
+      <article class="card" style="--accent:#8fb3ff;--shadow:rgba(143,179,255,.42);--glow:radial-gradient(circle,rgba(143,179,255,.75),transparent 65%);">
+        <span class="tag">06嚚璅雿???/span>
+        <div class="icon">NOTE</div>
+        <h2>???單???/h2>
+        <p>暺? 8 ?蝚行??雿?敺?雿輻 Web Audio API ?單??Ｙ??脤??/p>
+        <div class="actions">
+          <a class="btn" href="06_?單??萎??/02_???單???喟泵?萎??/index.html">???</a>
+          <a class="btn secondary" href="06_?單??萎??/02_???單???喟泵?萎??/read.md">?亦? read.md</a>
+        </div>
+      </article>
+
+      <article class="card" style="--accent:#ffb86b;--shadow:rgba(255,184,107,.42);--glow:radial-gradient(circle,rgba(255,184,107,.75),transparent 65%);">
+        <span class="tag">07嚚?憟?????/span>
+        <div class="icon">BEAT</div>
+        <h2>敶抵蝭憟雀</h2>
+        <p>雿輻 D??? ?賭葉???喟泵嚗?蝺渡?憟??蒂?閰???/p>
+        <div class="actions">
+          <a class="btn" href="07_蝭憟?????03_敶抵蝭憟雀_蝭憟?????index.html">???</a>
+          <a class="btn secondary" href="07_蝭憟?????03_敶抵蝭憟雀_蝭憟?????read.md">?亦? read.md</a>
+        </div>
+      </article>
+    </section>
+
+    <section class="note">
+      ?瑁??孵?嚗?仿???? `index.html`嚗??訾遙銝??憪??脯?舫脣撠??嚗??詻??read.md??梯?閰脤??脩??內閰瘜??飛隤芣???    </section>
+  </main>
+</body>
+</html>
+
