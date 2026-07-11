@@ -1,21 +1,17 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>???嚚TML5 Canvas ??亙</title>
+  <title>療育遊戲區｜HTML5 Canvas 遊戲入口</title>
   <style>
     :root {
       --bg: #07121f;
       --panel: rgba(255, 255, 255, 0.08);
-      --panel-strong: rgba(255, 255, 255, 0.13);
       --line: rgba(153, 233, 255, 0.3);
       --text: #f0fbff;
       --muted: #a9bfcc;
       --cyan: #7de8ff;
-      --mint: #93f2bc;
-      --rose: #ff8db7;
-      --gold: #ffd36f;
     }
 
     * {
@@ -32,7 +28,6 @@
         radial-gradient(circle at 86% 20%, rgba(255, 141, 183, 0.15), transparent 22rem),
         radial-gradient(circle at 60% 92%, rgba(147, 242, 188, 0.13), transparent 24rem),
         linear-gradient(135deg, #07121f 0%, #11142a 48%, #061a25 100%);
-      overflow-x: hidden;
     }
 
     .page {
@@ -145,8 +140,6 @@
 
     .tag {
       display: inline-flex;
-      align-items: center;
-      gap: 8px;
       padding: 6px 9px;
       border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 999px;
@@ -270,98 +263,98 @@
   <main class="page">
     <section class="hero">
       <div>
-        <h1>???</h1>
-        <p>?ㄐ?葉?渡? 7 ??湔?瑁???HTML5 Canvas ?嚗??急?蝺???鼓?怒璅雿?憟??I 撠店??RAG ???????脤??隤芣?瑼??拙???撅內?玨??撽? AI 撠???飛??/p>
+        <h1>療育遊戲區</h1>
+        <p>這裡集中整理 7 個可直接執行的 HTML5 Canvas 遊戲，包含情緒療癒、創意繪畫、音樂創作、節奏反應、AI 對話與 RAG 問答。每個遊戲都附有說明檔，適合研習展示、課堂體驗與 AI 專案開發教學。</p>
       </div>
       <div class="summary">
-        <div class="metric"><strong>7</strong><span>????/span></div>
-        <div class="metric"><strong>7</strong><span>隞?read.md</span></div>
-        <div class="metric"><strong>0</strong><span>憭憟辣</span></div>
+        <div class="metric"><strong>7</strong><span>個遊戲</span></div>
+        <div class="metric"><strong>7</strong><span>份 read.md</span></div>
+        <div class="metric"><strong>0</strong><span>外部套件</span></div>
       </div>
     </section>
 
-    <section class="grid" aria-label="?皜">
+    <section class="grid" aria-label="遊戲清單">
       <article class="card" style="--accent:#69e7ff;--shadow:rgba(105,231,255,.42);--glow:radial-gradient(circle,rgba(105,231,255,.75),transparent 65%);">
-        <span class="tag">01嚚?????/span>
+        <span class="tag">01｜射擊遊戲</span>
         <div class="icon">SHIP</div>
-        <h2>???脩?</h2>
-        <p>?批憭芰征?孵??鈭綽?擃??征蝘餃????賢潦??貉???漲????/p>
+        <h2>星際防線</h2>
+        <p>控制太空船射擊敵人，體驗星空移動、生命值、分數與難度提升。</p>
         <div class="actions">
-          <a class="btn" href="01_撠??/???脩?_HTML5_Canvas_撠??/index.html">???</a>
-          <a class="btn secondary" href="01_撠??/???脩?_HTML5_Canvas_撠??/read.md">?亦? read.md</a>
+          <a class="btn" href="games/01-starfleet-defense/index.html">開始遊戲</a>
+          <a class="btn secondary" href="games/01-starfleet-defense/read.md">查看 read.md</a>
         </div>
       </article>
 
       <article class="card" style="--accent:#ff8db7;--shadow:rgba(255,141,183,.42);--glow:radial-gradient(circle,rgba(255,141,183,.75),transparent 65%);">
-        <span class="tag">02嚚?蝺?????/span>
+        <span class="tag">02｜情緒療癒遊戲</span>
         <div class="icon">HEART</div>
-        <h2>敹?瘜⊥部</h2>
-        <p>?批???園?蝚?瘜⊥部嚗??部瘜∴??剝?敶抵?????瘚桀??怒?/p>
+        <h2>心光泡泡</h2>
+        <p>控制愛心收集笑臉泡泡，避開哭臉泡泡，搭配彩虹背景與柔和漂浮動畫。</p>
         <div class="actions">
-          <a class="btn" href="02_?????/敹?瘜⊥部_HTML5_Canvas_?????/index.html">???</a>
-          <a class="btn secondary" href="02_?????/敹?瘜⊥部_HTML5_Canvas_?????/read.md">?亦? read.md</a>
+          <a class="btn" href="games/02-heart-bubbles/index.html">開始遊戲</a>
+          <a class="btn secondary" href="games/02-heart-bubbles/read.md">查看 read.md</a>
         </div>
       </article>
 
       <article class="card" style="--accent:#ffd36f;--shadow:rgba(255,211,111,.42);--glow:radial-gradient(circle,rgba(255,211,111,.75),transparent 65%);">
-        <span class="tag">03嚚I NPC 撠店?</span>
+        <span class="tag">03｜AI NPC 對話遊戲</span>
         <div class="icon">NPC</div>
-        <h2>?箸?∪?撠汗??/h2>
-        <p>?冽??蝝ｇ??? NPC 撠店嚗?祆?閬?撘頂蝯望閰Ｘ??閮?/p>
+        <h2>智慧校園導覽員</h2>
+        <p>在校園地圖探索，靠近 NPC 對話，用本機規則式系統查詢校園資訊。</p>
         <div class="actions">
-          <a class="btn" href="03_AI_NPC撠店?/?箸?∪?撠汗?︵HTML5_Canvas_AI_NPC撠店?/index.html">???</a>
-          <a class="btn secondary" href="03_AI_NPC撠店?/?箸?∪?撠汗?︵HTML5_Canvas_AI_NPC撠店?/read.md">?亦? read.md</a>
+          <a class="btn" href="games/03-smart-campus-guide/index.html">開始遊戲</a>
+          <a class="btn secondary" href="games/03-smart-campus-guide/read.md">查看 read.md</a>
         </div>
       </article>
 
       <article class="card" style="--accent:#93f2bc;--shadow:rgba(147,242,188,.42);--glow:radial-gradient(circle,rgba(147,242,188,.75),transparent 65%);">
-        <span class="tag">04嚚AG ???</span>
+        <span class="tag">04｜RAG 問答遊戲</span>
         <div class="icon">RAG</div>
-        <h2>?亥????ａ</h2>
-        <p>擏?憭芰征?寥脣?亥???嚗芋?祆炎蝝Ｕ?皞??曇??渡?????RAG 瘚???/p>
+        <h2>知識星球探險</h2>
+        <p>駕駛太空船進入知識星球，模擬檢索、來源呈現與整理回答的 RAG 流程。</p>
         <div class="actions">
-          <a class="btn" href="04_RAG???/?亥????ａ_HTML5_Canvas_RAG???/index.html">???</a>
-          <a class="btn secondary" href="04_RAG???/?亥????ａ_HTML5_Canvas_RAG???/read.md">?亦? read.md</a>
+          <a class="btn" href="games/04-knowledge-planet-rag/index.html">開始遊戲</a>
+          <a class="btn secondary" href="games/04-knowledge-planet-rag/read.md">查看 read.md</a>
         </div>
       </article>
 
       <article class="card" style="--accent:#c7a7ff;--shadow:rgba(199,167,255,.42);--glow:radial-gradient(circle,rgba(199,167,255,.75),transparent 65%);">
-        <span class="tag">05嚚??銵???/span>
+        <span class="tag">05｜創意藝術遊戲</span>
         <div class="icon">ART</div>
-        <h2>憭Ｘ?怠?</h2>
-        <p>?芰蝜芰??摮??雿??舀銝?祉蝑蔗?寧??????屆?格??/p>
+        <h2>夢想畫布</h2>
+        <p>自由繪畫與粒子光暈創作，支援一般畫筆、彩虹筆、星光筆與橡皮擦。</p>
         <div class="actions">
-          <a class="btn" href="05_?菜????/01_憭Ｘ?怠?_?芰蝎?蝜芰/index.html">???</a>
-          <a class="btn secondary" href="05_?菜????/01_憭Ｘ?怠?_?芰蝎?蝜芰/read.md">?亦? read.md</a>
+          <a class="btn" href="games/05-dream-canvas/index.html">開始遊戲</a>
+          <a class="btn secondary" href="games/05-dream-canvas/read.md">查看 read.md</a>
         </div>
       </article>
 
       <article class="card" style="--accent:#8fb3ff;--shadow:rgba(143,179,255,.42);--glow:radial-gradient(circle,rgba(143,179,255,.75),transparent 65%);">
-        <span class="tag">06嚚璅雿???/span>
+        <span class="tag">06｜音樂創作遊戲</span>
         <div class="icon">NOTE</div>
-        <h2>???單???/h2>
-        <p>暺? 8 ?蝚行??雿?敺?雿輻 Web Audio API ?單??Ｙ??脤??/p>
+        <h2>星光音樂盒</h2>
+        <p>點擊 8 個音符星球創作旋律，使用 Web Audio API 即時產生聲音。</p>
         <div class="actions">
-          <a class="btn" href="06_?單??萎??/02_???單???喟泵?萎??/index.html">???</a>
-          <a class="btn secondary" href="06_?單??萎??/02_???單???喟泵?萎??/read.md">?亦? read.md</a>
+          <a class="btn" href="games/06-starlight-music-box/index.html">開始遊戲</a>
+          <a class="btn secondary" href="games/06-starlight-music-box/read.md">查看 read.md</a>
         </div>
       </article>
 
       <article class="card" style="--accent:#ffb86b;--shadow:rgba(255,184,107,.42);--glow:radial-gradient(circle,rgba(255,184,107,.75),transparent 65%);">
-        <span class="tag">07嚚?憟?????/span>
+        <span class="tag">07｜節奏反應遊戲</span>
         <div class="icon">BEAT</div>
-        <h2>敶抵蝭憟雀</h2>
-        <p>雿輻 D??? ?賭葉???喟泵嚗?蝺渡?憟??蒂?閰???/p>
+        <h2>彩虹節奏島</h2>
+        <p>使用 D、F、J、K 命中四軌音符，訓練節奏反應並挑戰評級。</p>
         <div class="actions">
-          <a class="btn" href="07_蝭憟?????03_敶抵蝭憟雀_蝭憟?????index.html">???</a>
-          <a class="btn secondary" href="07_蝭憟?????03_敶抵蝭憟雀_蝭憟?????read.md">?亦? read.md</a>
+          <a class="btn" href="games/07-rainbow-rhythm-island/index.html">開始遊戲</a>
+          <a class="btn secondary" href="games/07-rainbow-rhythm-island/read.md">查看 read.md</a>
         </div>
       </article>
     </section>
 
     <section class="note">
-      ?瑁??孵?嚗?仿???? `index.html`嚗??訾遙銝??憪??脯?舫脣撠??嚗??詻??read.md??梯?閰脤??脩??內閰瘜??飛隤芣???    </section>
+      執行方式：點選任一「開始遊戲」即可進入對應遊戲；點選「查看 read.md」可閱讀該遊戲的提示詞、玩法與教學說明。
+    </section>
   </main>
 </body>
 </html>
-

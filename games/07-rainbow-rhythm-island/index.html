@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>彩虹節奏島｜節奏反應遊戲</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;overflow:hidden;color:#f0fbff;font-family:"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;background:radial-gradient(circle at 50% 12%,rgba(255,255,255,.08),transparent 18rem),linear-gradient(180deg,#0a1026,#030713 72%,#010207)}
+    main{width:min(96vw,1040px);padding:16px;border:1px solid rgba(116,229,255,.28);border-radius:14px;background:rgba(5,14,32,.84);box-shadow:0 28px 80px rgba(0,0,0,.48),inset 0 0 44px rgba(116,229,255,.05)}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}h1{margin:0;font-size:clamp(1.35rem,3vw,2.1rem);text-shadow:0 0 18px rgba(116,229,255,.34)}
+    .hud{display:flex;gap:8px;flex-wrap:wrap}.chip,button{padding:8px 10px;border:1px solid rgba(116,229,255,.28);border-radius:8px;background:rgba(255,255,255,.06);color:#abc0d4;font:inherit}.chip strong{margin-left:6px;color:#fff}button{cursor:pointer}button:hover,button.active{color:#fff;border-color:#74e5ff;background:rgba(116,229,255,.14)}
+    .box{width:100%;aspect-ratio:16/9;border:1px solid rgba(116,229,255,.38);border-radius:12px;overflow:hidden;background:#020713}canvas{display:block;width:100%;height:100%}.help{margin-top:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#abc0d4;font-size:.92rem}kbd{padding:2px 7px;border:1px solid rgba(255,255,255,.26);border-radius:6px;background:rgba(255,255,255,.08);color:#fff}
+  </style>
+</head>
+<body>
+<main>
+  <section class="top"><h1>彩虹節奏島</h1><div class="hud"><span class="chip">分數<strong id="score">0</strong></span><span class="chip">連擊<strong id="combo">0</strong></span><span class="chip">最高連擊<strong id="best">0</strong></span><span class="chip">狀態<strong id="state">待開始</strong></span><button data-diff="easy" class="active">簡單</button><button data-diff="normal">普通</button><button data-diff="hard">困難</button></div></section>
+  <section class="box"><canvas id="game" width="920" height="520"></canvas></section>
+  <section class="help"><span><kbd>Enter</kbd> 開始／重新開始　<kbd>Space</kbd> 暫停／繼續</span><span><kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd> 控制四條音軌</span></section>
+</main>
+<script>
+  // 彩虹節奏島：requestAnimationFrame 遊戲循環，Web Audio API 產生節拍音效，不使用音樂素材。
+  const canvas=document.getElementById("game"),ctx=canvas.getContext("2d"),W=canvas.width,H=canvas.height;
+  const scoreEl=document.getElementById("score"),comboEl=document.getElementById("combo"),bestEl=document.getElementById("best"),stateEl=document.getElementById("state");
+  const keys=["KeyD","KeyF","KeyJ","KeyK"],labels=["D","F","J","K"],colors=["#ff7da9","#ffd166","#74e5ff","#9bff9f"],lanes=[190,370,550,730];
+  const notes=[],fx=[];let audio=null,state="ready",difficulty="easy",score=0,combo=0,best=0,startTime=0,last=0,beatTimer=0,noteIndex=0,judge="",judgeLife=0,paused=false,grade="";
+  const settings={easy:{speed:185,interval:.86,total:36},normal:{speed:245,interval:.68,total:44},hard:{speed:315,interval:.52,total:56}};
+  document.querySelectorAll("button").forEach(b=>b.onclick=()=>{difficulty=b.dataset.diff;document.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b))});
+  addEventListener("keydown",e=>{if(e.code==="Space")e.preventDefault();if(e.code==="Enter")start();if(e.code==="Space"&&state==="playing"){paused=!paused;stateEl.textContent=paused?"暫停":"遊戲中"}const lane=keys.indexOf(e.code);if(lane>=0&&state==="playing"&&!paused)hit(lane)});
+  function ensureAudio(){if(!audio)audio=new (window.AudioContext||window.webkitAudioContext)();if(audio.state==="suspended")audio.resume()}
+  function beep(freq=440,d=.08,type="square"){ensureAudio();const now=audio.currentTime,o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=freq;o.connect(g);g.connect(audio.destination);g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(.14,now+.01);g.gain.exponentialRampToValueAtTime(.0001,now+d);o.start(now);o.stop(now+d+.03)}
+  function start(){ensureAudio();state="playing";paused=false;score=0;combo=0;best=0;notes.length=0;fx.length=0;noteIndex=0;beatTimer=0;judge="";grade="";startTime=performance.now();hud()}
+  function spawn(){const s=settings[difficulty];if(noteIndex>=s.total)return;notes.push({lane:Math.floor(Math.random()*4),y:-30,hit:false,shape:noteIndex%3});noteIndex++;beep(220,.045,"triangle")}
+  function hit(lane){let target=null,dist=999;for(const n of notes){if(n.lane!==lane||n.hit)continue;const d=Math.abs(n.y-(H-92));if(d<dist){dist=d;target=n}}if(target&&dist<54){target.hit=true;notes.splice(notes.indexOf(target),1);if(dist<24){score+=100;combo++;judge="Perfect";beep(660,.08,"sine")}else{score+=50;combo++;judge="Good";beep(520,.08,"sine")}best=Math.max(best,combo);judgeLife=.55;burst(lanes[lane],H-92,colors[lane])}else{combo=0;judge="Miss";judgeLife=.5;beep(140,.1,"sawtooth")}hud()}
+  function miss(n){combo=0;judge="Miss";judgeLife=.5;notes.splice(notes.indexOf(n),1);hud()}
+  function burst(x,y,c){for(let i=0;i<18;i++){const a=Math.random()*Math.PI*2,s=Math.random()*4+1;fx.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:Math.random()*3+1,life:.55,c})}}
+  function update(dt){if(state!=="playing"||paused)return;const s=settings[difficulty];beatTimer+=dt;if(beatTimer>=s.interval){beatTimer=0;spawn()}for(let i=notes.length-1;i>=0;i--){notes[i].y+=s.speed*dt;if(notes[i].y>H-35)miss(notes[i])}for(let i=fx.length-1;i>=0;i--){const p=fx[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.04;p.life-=dt;if(p.life<=0)fx.splice(i,1)}judgeLife=Math.max(0,judgeLife-dt);if(noteIndex>=s.total&&notes.length===0){state="end";grade=score>=s.total*82?"S":score>=s.total*62?"A":score>=s.total*42?"B":"C";stateEl.textContent="完成"}hud()}
+  function hud(){scoreEl.textContent=score;comboEl.textContent=combo;bestEl.textContent=best;stateEl.textContent=state==="ready"?"待開始":state==="playing"?(paused?"暫停":"遊戲中"):state==="end"?"完成":"待開始"}
+  function draw(){ctx.clearRect(0,0,W,H);bg();lanes.forEach((x,i)=>lane(x,i));notes.forEach(note);fx.forEach(p=>{ctx.globalAlpha=p.life/.55;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;if(judgeLife>0){ctx.fillStyle=judge==="Perfect"?"#ffd166":judge==="Good"?"#74e5ff":"#ff7da9";ctx.font="800 42px Segoe UI";ctx.textAlign="center";ctx.fillText(judge,W/2,125)}if(state==="ready"||state==="end")overlay()}
+  function bg(){const pulse=state==="playing"&&!paused?Math.sin(performance.now()/130)*.06:0;ctx.fillStyle=`rgba(3,7,19,${1-pulse})`;ctx.fillRect(0,0,W,H);for(let i=0;i<7;i++){ctx.strokeStyle=`hsla(${i*48+performance.now()/60},90%,65%,.13)`;ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(80+i*120,0);ctx.bezierCurveTo(210+i*80,180,120+i*120,330,260+i*90,H);ctx.stroke()}}
+  function lane(x,i){ctx.fillStyle="rgba(255,255,255,.045)";ctx.fillRect(x-55,40,110,H-96);ctx.strokeStyle=colors[i];ctx.lineWidth=3;ctx.strokeRect(x-55,40,110,H-96);ctx.fillStyle="rgba(255,255,255,.1)";ctx.fillRect(x-55,H-112,110,40);ctx.fillStyle=colors[i];ctx.font="800 24px Segoe UI";ctx.textAlign="center";ctx.fillText(labels[i],x,H-84)}
+  function note(n){const x=lanes[n.lane],c=colors[n.lane];ctx.fillStyle=c;ctx.shadowColor=c;ctx.shadowBlur=18;if(n.shape===0){ctx.beginPath();ctx.arc(x,n.y,22,0,Math.PI*2);ctx.fill()}else if(n.shape===1){star(x,n.y,24,c)}else{ctx.beginPath();ctx.moveTo(x,n.y-25);ctx.lineTo(x+25,n.y);ctx.lineTo(x,n.y+25);ctx.lineTo(x-25,n.y);ctx.closePath();ctx.fill()}ctx.shadowBlur=0}
+  function star(x,y,r,c){ctx.fillStyle=c;ctx.beginPath();for(let i=0;i<10;i++){const rr=i%2?r*.45:r,a=-Math.PI/2+i*Math.PI/5;ctx.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}ctx.closePath();ctx.fill()}
+  function overlay(){ctx.fillStyle="rgba(1,4,12,.72)";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle=state==="end"?"#ffd166":"#f0fbff";ctx.font="800 42px Segoe UI";ctx.fillText(state==="end"?`評級 ${grade}`:"彩虹節奏島",W/2,H/2-48);ctx.fillStyle="#abc0d4";ctx.font="18px Segoe UI";ctx.fillText(state==="end"?`分數 ${score}｜最高連擊 ${best}`:"按 Enter 開始，使用 D、F、J、K 命中音符",W/2,H/2+6);ctx.fillStyle="#74e5ff";ctx.font="15px Segoe UI";ctx.fillText("Perfect 100 分，Good 50 分，Miss 中斷連擊",W/2,H/2+48)}
+  function loop(now){const dt=Math.min(.033,(now-last)/1000||0);last=now;update(dt);draw();requestAnimationFrame(loop)}hud();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
