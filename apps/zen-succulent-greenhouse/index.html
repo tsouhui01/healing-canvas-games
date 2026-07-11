@@ -1,0 +1,601 @@
+html_content = """<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>治癒系多肉植物溫室 - Zen Succulent Greenhouse</title>
+    <style>
+        /* 基礎樣式：營造溫暖放鬆的莫蘭迪色系 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background: linear-gradient(135deg, #f4ebe1, #e4ede4);
+            color: #5a6b5c;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            transition: background 1.5s ease;
+        }
+        
+        /* 溫室背景模式切換 */
+        body.afternoon {
+            background: linear-gradient(135deg, #f3dcd4, #e2ccc4);
+            color: #6b534c;
+        }
+        body.night {
+            background: linear-gradient(135deg, #232936, #151922);
+            color: #a0b2c6;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .subtitle {
+            font-size: 13px;
+            margin-bottom: 15px;
+            opacity: 0.8;
+            text-align: center;
+        }
+
+        /* 遊戲主容器 */
+        #gameContainer {
+            position: relative;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 24px;
+            box-shadow: 0 12px 40px rgba(90, 107, 92, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            transition: all 0.5s ease;
+        }
+        body.night #gameContainer {
+            background: rgba(20, 25, 35, 0.5);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        canvas {
+            display: block;
+            border-radius: 16px;
+            cursor: pointer;
+        }
+
+        /* 科技簡約感 UI 按鈕區 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px 5px;
+            border: none;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.8);
+            color: #5a6b5c;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn .icon {
+            font-size: 18px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+            background: #fff;
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        body.night .btn {
+            background: rgba(40, 50, 70, 0.8);
+            color: #d0deec;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        body.night .btn:hover {
+            background: rgba(50, 65, 90, 0.9);
+        }
+
+        /* 提示資訊 */
+        .instructions {
+            margin-top: 15px;
+            font-size: 12px;
+            opacity: 0.7;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #7ba37a;
+        }
+        body.night .highlight {
+            color: #8ab4f8;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 id="titleText">暖陽多肉溫室</h1>
+    <div class="subtitle" id="subtitleText">白天模式：靜靜收集飄落的光點與雨滴吧</div>
+    
+    <div id="gameContainer">
+        <canvas id="zenCanvas" width="500" height="450"></canvas>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="waterBtn"><span class="icon">💧</span>澆水</button>
+        <button class="btn" id="sunBtn"><span class="icon">☀️</span>日光浴</button>
+        <button class="btn" id="loveBtn"><span class="icon">💖</span>給予愛心</button>
+    </div>
+
+    <div class="instructions">
+        互動：點擊畫面上飄浮的<span class="highlight">能量光點</span>或多肉植物可獲得能量<br>
+        環境：按下 <span class="highlight">Enter</span> 鍵可自由切換【白天 ➔ 黃昏 ➔ 夜晚】景色
+    </div>
+
+    <script>
+        const canvas = document.getElementById('zenCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- 遊戲環境狀態 ---
+        const MODES = ['morning', 'afternoon', 'night'];
+        let currentModeIndex = 0; // 0: 白天, 1: 黃昏, 2: 夜晚
+
+        // --- 培育數據 ---
+        let zenEnergy = 0;
+        let plantLevel = 1;
+        let plantMaxLevel = 4;
+        let plantName = "初生萌芽小可愛";
+        const levelNames = ["初生萌芽小可愛", "嫩綠靜謐仙人掌", "盛開翡翠石蓮花", "溫室巨星多肉皇冠"];
+
+        // --- 互動狀態反饋動畫 ---
+        let interactionMessage = "";
+        let messageTimer = 0;
+
+        // --- 物件陣列管理 ---
+        let energyDots = [];
+        let particles = [];
+        let backgroundDecos = []; // 如蝴蝶、螢火蟲
+
+        // 玩家點擊植物區域判斷
+        const plantCenter = { x: canvas.width / 2, y: canvas.height / 2 + 30 };
+        const clickRadius = 80;
+
+        // --- 初始化背景元素 ---
+        function initDecos() {
+            backgroundDecos = [];
+            // 隨機產生一些溫室微粒
+            for(let i=0; i<15; i++) {
+                backgroundDecos.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 3 + 1,
+                    speedY: -(Math.random() * 0.4 + 0.1),
+                    angle: Math.random() * Math.PI * 2,
+                    speedX: (Math.random() - 0.5) * 0.3
+                });
+            }
+        }
+
+        // 產生飄落的能量光點 (雨滴、光斑或流星)
+        function spawnEnergyDot() {
+            let typeChance = Math.random();
+            let dot = {
+                x: Math.random() * canvas.width,
+                y: -20,
+                radius: Math.random() * 6 + 6,
+                speedY: Math.random() * 0.8 + 0.6,
+                speedX: (Math.random() - 0.5) * 0.5,
+                pulse: 0,
+                pulseSpeed: Math.random() * 0.05 + 0.02
+            };
+
+            if (currentModeIndex === 0) { // 白天：嫩綠雨滴
+                dot.color = 'rgba(123, 163, 122, 0.7)';
+                dot.type = 'rain';
+            } else if (currentModeIndex === 1) { // 黃昏：金色光斑
+                dot.color = 'rgba(235, 160, 110, 0.8)';
+                dot.type = 'sunlight';
+            } else { // 夜晚：璀璨螢光
+                dot.color = 'rgba(138, 180, 248, 0.8)';
+                dot.type = 'star';
+                dot.y = Math.random() * (canvas.height - 150); // 夜晚從天空中間或上方冒出
+                dot.speedY = -(Math.random() * 0.4 + 0.2); // 往上飄
+            }
+            energyDots.push(dot);
+        }
+
+        // --- 產生點擊擴散微粒 ---
+        function createBurst(x, y, color, count=10) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    radius: Math.random() * 3 + 1,
+                    alpha: 1,
+                    decay: Math.random() * 0.02 + 0.01,
+                    color: color
+                });
+            }
+        }
+
+        // --- 觸發能量獲得機制 ---
+        function gainEnergy(amount, x, y, color) {
+            zenEnergy += amount;
+            createBurst(x, y, color, 8);
+            
+            // 檢查是否升級
+            let targetLevel = Math.min(plantMaxLevel, Math.floor(zenEnergy / 200) + 1);
+            if (targetLevel > plantLevel) {
+                plantLevel = targetLevel;
+                plantName = levelNames[plantLevel - 1];
+                triggerFeedback("✨ 多肉植物成長茁壯了！ ✨");
+                createBurst(plantCenter.x, plantCenter.y - 40, '#ffeb3b', 30);
+            }
+        }
+
+        function triggerFeedback(msg) {
+            interactionMessage = msg;
+            messageTimer = 120; // 顯示約2秒
+        }
+
+        // --- 鍵盤切換環境事件 ---
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Enter') {
+                currentModeIndex = (currentModeIndex + 1) % MODES.length;
+                updateEnvironmentUI();
+            }
+        });
+
+        function updateEnvironmentUI() {
+            document.body.className = MODES[currentModeIndex];
+            const title = document.getElementById('titleText');
+            const subtitle = document.getElementById('subtitleText');
+            
+            if (currentModeIndex === 0) {
+                title.innerText = "暖陽多肉溫室";
+                subtitle.innerText = "白天模式：靜靜收集飄落的光點與雨滴吧";
+            } else if (currentModeIndex === 1) {
+                title.innerText = "夕色沐光小屋";
+                subtitle.innerText = "黃昏模式：暖融融的金色餘暉照耀著大地";
+            } else {
+                title.innerText = "星夜靜謐暖房";
+                subtitle.innerText = "夜晚模式：點點螢光飛舞，多肉正安穩沉睡";
+            }
+            triggerFeedback("環境切換至 ➔ " + title.innerText);
+        }
+
+        // --- 滑鼠與觸控點擊事件 ---
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // 1. 優先檢查是否點擊到飄浮的能量點
+            for (let i = energyDots.length - 1; i >= 0; i--) {
+                let dot = energyDots[i];
+                let dist = Math.hypot(mouseX - dot.x, mouseY - dot.y);
+                if (dist < dot.radius + 15) { // 增加一點點擊判定外擴
+                    gainEnergy(20, dot.x, dot.y, dot.color);
+                    energyDots.splice(i, 1);
+                    return; // 點到能量點就結束本次判斷
+                }
+            }
+
+            // 2. 檢查是否點擊到中央多肉植物
+            let distToPlant = Math.hypot(mouseX - plantCenter.x, mouseY - plantCenter.y);
+            if (distToPlant < clickRadius) {
+                let pColor = currentModeIndex === 2 ? '#8ab4f8' : '#a2bda0';
+                gainEnergy(5, mouseX, mouseY, pColor);
+                
+                const miniMsgs = ["摸摸多肉~", "好舒服呀~", "🌱", "啾咪", "多肉開心地抖了一下"];
+                triggerFeedback(miniMsgs[Math.floor(Math.random() * miniMsgs.length)]);
+            }
+        });
+
+        // --- 按鈕功能綁定 ---
+        document.getElementById('waterBtn').addEventListener('click', () => {
+            gainEnergy(15, plantCenter.x, plantCenter.y - 20, '#4fc3f7');
+            triggerFeedback("💧 澆灌純淨泉水，多肉感到很滋潤！");
+        });
+        document.getElementById('sunBtn').addEventListener('click', () => {
+            gainEnergy(15, plantCenter.x, plantCenter.y - 40, '#ffb74d');
+            triggerFeedback("☀️ 進行高效光合作用，葉片充滿能量！");
+        });
+        document.getElementById('loveBtn').addEventListener('click', () => {
+            gainEnergy(15, plantCenter.x, plantCenter.y - 30, '#f06292');
+            triggerFeedback("💖 給予暖心呵護，幸福感爆棚！");
+        });
+
+        // --- 核心更新邏輯 ---
+        function update() {
+            // 隨機生成能量點
+            if (Math.random() < 0.015) {
+                spawnEnergyDot();
+            }
+
+            // 更新環境微粒
+            backgroundDecos.forEach(deco => {
+                deco.y += deco.speedY;
+                deco.angle += 0.01;
+                deco.x += deco.speedX + Math.sin(deco.angle) * 0.1;
+                
+                // 邊界重置
+                if (deco.y < -10) {
+                    deco.y = canvas.height + 10;
+                    deco.x = Math.random() * canvas.width;
+                }
+            });
+
+            // 更新能量點位置
+            for (let i = energyDots.length - 1; i >= 0; i--) {
+                let dot = energyDots[i];
+                dot.y += dot.speedY;
+                dot.x += dot.speedX;
+                dot.pulse += dot.pulseSpeed;
+
+                // 邊界處理 (白天黃昏向下掉，夜晚向上飄)
+                if (currentModeIndex === 2) {
+                    if (dot.y < -20) energyDots.splice(i, 1);
+                } else {
+                    if (dot.y > canvas.height + 20) energyDots.splice(i, 1);
+                }
+            }
+
+            // 更新爆炸微粒
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // 減少訊息提示時間
+            if (messageTimer > 0) messageTimer--;
+        }
+
+        // --- 藝術感繪製圖形 ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 根據模式設定畫布內底色
+            let canvasBg = 'rgba(255, 255, 255, 0.2)';
+            if (currentModeIndex === 1) canvasBg = 'rgba(240, 220, 210, 0.15)';
+            if (currentModeIndex === 2) canvasBg = 'rgba(15, 20, 30, 0.4)';
+            ctx.fillStyle = canvasBg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 繪製溫室微粒裝飾
+            backgroundDecos.forEach(deco => {
+                ctx.fillStyle = currentModeIndex === 2 ? 'rgba(230, 240, 255, 0.2)' : 'rgba(90, 107, 92, 0.08)';
+                ctx.beginPath();
+                ctx.arc(deco.x, deco.y, deco.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 2. 繪製花盆 (柔和幾何梯形)
+            ctx.save();
+            ctx.translate(plantCenter.x, plantCenter.y + 40);
+            
+            // 花盆主體
+            let potColor = currentModeIndex === 2 ? '#3a4454' : '#e0cfc3';
+            let potRimColor = currentModeIndex === 2 ? '#4e5b70' : '#ebdcd0';
+            ctx.fillStyle = potColor;
+            ctx.beginPath();
+            ctx.moveTo(-45, 0);
+            ctx.lineTo(45, 0);
+            ctx.lineTo(35, 50);
+            ctx.lineTo(-35, 50);
+            ctx.closePath();
+            ctx.fill();
+
+            // 花盆邊緣口
+            ctx.fillStyle = potRimColor;
+            ctx.fillRect(-49, -8, 98, 8);
+            ctx.restore();
+
+            // 3. 繪製多肉植物本體 (依等級呈現不同的層次堆疊)
+            ctx.save();
+            ctx.translate(plantCenter.x, plantCenter.y + 5);
+
+            // 顏色色調控制
+            let leafBaseColor = '#8fae8d';
+            let leafTipColor = '#dfa2a6'; // 粉嫩葉尖
+            if (currentModeIndex === 2) {
+                leafBaseColor = '#526e6d';
+                leafTipColor = '#9fa8da';
+            }
+
+            // 繪製精緻幾何多肉葉瓣的輔助函式
+            function drawLeaf(x, y, radiusX, radiusY, rotation, baseColor, tipColor) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
+                let grad = ctx.createRadialGradient(0, 5, 2, 0, 0, radiusX);
+                grad.addColorStop(0, baseColor);
+                grad.addColorStop(0.7, baseColor);
+                grad.addColorStop(1, tipColor);
+                ctx.fillStyle = grad;
+                
+                ctx.beginPath();
+                // 畫出一瓣圓潤帶尖的多肉葉
+                ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 根據等級渲染不同形態
+            if (plantLevel === 1) {
+                // 小萌芽階段
+                drawLeaf(-15, 10, 18, 12, -Math.PI/6, leafBaseColor, leafTipColor);
+                drawLeaf(15, 10, 18, 12, Math.PI/6, leafBaseColor, leafTipColor);
+                drawLeaf(0, 0, 14, 20, 0, leafBaseColor, leafTipColor);
+            } 
+            else if (plantLevel === 2) {
+                // 仙人掌堆疊型態
+                drawLeaf(0, 15, 30, 25, 0, leafBaseColor, '#b0cbb0'); // 底座
+                drawLeaf(-22, -10, 16, 14, -Math.PI/4, leafBaseColor, leafTipColor); // 左耳
+                drawLeaf(22, -10, 16, 14, Math.PI/4, leafBaseColor, leafTipColor);  // 右耳
+                drawLeaf(0, -15, 18, 18, 0, leafBaseColor, leafTipColor);  // 頂部小球
+            } 
+            else if (plantLevel === 3) {
+                // 石蓮花層次型態 (外圈到內圈)
+                // 外圈
+                for(let i=0; i<6; i++) {
+                    let angle = (i * Math.PI) / 3;
+                    drawLeaf(Math.cos(angle)*32, Math.sin(angle)*32 + 5, 22, 16, angle + Math.PI/2, leafBaseColor, leafTipColor);
+                }
+                // 內圈
+                for(let i=0; i<5; i++) {
+                    let angle = (i * Math.PI * 2) / 5 + 0.3;
+                    drawLeaf(Math.cos(angle)*16, Math.sin(angle)*16 + 5, 16, 12, angle + Math.PI/2, '#9bba99', '#e8b2b6');
+                }
+                // 中心核心
+                drawLeaf(0, 3, 10, 10, 0, '#a9c9a7', '#f3bfc3');
+            } 
+            else if (plantLevel === 4) {
+                // 豪華蓮花皇冠頂部帶小碎花
+                // 最底層巨大葉片
+                for(let i=0; i<8; i++) {
+                    let angle = (i * Math.PI) / 4;
+                    drawLeaf(Math.cos(angle)*42, Math.sin(angle)*42 + 5, 26, 18, angle + Math.PI/2, leafBaseColor, leafTipColor);
+                }
+                // 中層
+                for(let i=0; i<6; i++) {
+                    let angle = (i * Math.PI) / 3 + 0.2;
+                    drawLeaf(Math.cos(angle)*24, Math.sin(angle)*24 + 5, 20, 14, angle + Math.PI/2, '#9ec09c', '#eebdc1');
+                }
+                // 核心
+                for(let i=0; i<4; i++) {
+                    let angle = (i * Math.PI) / 2 + 0.4;
+                    drawLeaf(Math.cos(angle)*10, Math.sin(angle)*10 + 5, 14, 10, angle + Math.PI/2, '#b2d4b0', '#fbc5ca');
+                }
+                
+                // 超頂級：開出一朵純程式碼繪製的小黃花點綴
+                ctx.fillStyle = '#fff59d';
+                ctx.beginPath();
+                ctx.arc(0, -25, 6, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#fbc02d';
+                for(let j=0; j<5; j++) {
+                    let fa = (j * Math.PI * 2) / 5;
+                    ctx.beginPath();
+                    ctx.arc(Math.cos(fa)*8, -25 + Math.sin(fa)*8, 4, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+
+            ctx.restore();
+
+            // 4. 繪製上方飄落/上升的能量光點
+            energyDots.forEach(dot => {
+                ctx.save();
+                let pulseRadius = dot.radius + Math.sin(dot.pulse) * 2;
+                
+                // 光暈特效
+                let glow = ctx.createRadialGradient(dot.x, dot.y, 2, dot.x, dot.y, pulseRadius * 2);
+                glow.addColorStop(0, '#ffffff');
+                glow.addColorStop(0.3, dot.color);
+                glow.addColorStop(1, 'rgba(255,255,255,0)');
+                
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(dot.x, dot.y, pulseRadius * 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 5. 繪製擴散微粒
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 6. 頂部 UI 狀態面板
+            let uiTextColor = currentModeIndex === 2 ? '#a0b2c6' : '#5a6b5c';
+            ctx.fillStyle = uiTextColor;
+            ctx.font = 'bold 15px "PingFang TC", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`🌵 當前型態: ${plantName} (Lv.${plantLevel})`, 20, 35);
+            
+            ctx.textAlign = 'right';
+            ctx.fillText(`✨ 療癒能量: ${zenEnergy}`, canvas.width - 20, 35);
+
+            // 繪製能量進度條底座
+            let barBg = currentModeIndex === 2 ? 'rgba(255,255,255,0.1)' : 'rgba(90, 107, 92, 0.1)';
+            ctx.fillStyle = barBg;
+            ctx.fillRect(20, 50, canvas.width - 40, 6);
+            
+            // 繪製能量進度條填充
+            let progress = (zenEnergy % 200) / 200;
+            if (plantLevel === plantMaxLevel) progress = 1.0; // 滿級填滿
+            let barFillColor = currentModeIndex === 2 ? '#8ab4f8' : '#7ba37a';
+            ctx.fillStyle = barFillColor;
+            ctx.fillRect(20, 50, (canvas.width - 40) * progress, 6);
+
+            // 7. 繪製中央操作動態反饋訊息
+            if (messageTimer > 0) {
+                ctx.save();
+                ctx.fillStyle = uiTextColor;
+                ctx.font = 'italic 13px "PingFang TC", sans-serif';
+                ctx.textAlign = 'center';
+                // 隨時間產生淡出效果
+                ctx.globalAlpha = Math.min(1.0, messageTimer / 30);
+                ctx.fillText(interactionMessage, canvas.width / 2, canvas.height / 2 - 80);
+                ctx.restore();
+            }
+        }
+
+        // --- 遊戲主迴圈 ---
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 啟動初始化
+        initDecos();
+        gameLoop();
+    </script>
+</body>
+</html>
+"""
+
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+print("File generated successfully: index.html")

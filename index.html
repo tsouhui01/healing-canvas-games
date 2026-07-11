@@ -3,15 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>療育遊戲區｜HTML5 Canvas 遊戲入口</title>
+  <title>Kiwi AIGC 互動程式作品集</title>
   <style>
     :root {
-      --bg: #07121f;
-      --panel: rgba(255, 255, 255, 0.08);
-      --line: rgba(153, 233, 255, 0.3);
-      --text: #f0fbff;
-      --muted: #a9bfcc;
-      --cyan: #7de8ff;
+      --text: #eefbff;
+      --muted: #a8bdc9;
+      --cyan: #7ae6ff;
+      --line: rgba(122, 230, 255, 0.3);
     }
 
     * {
@@ -24,50 +22,54 @@
       color: var(--text);
       font-family: "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
       background:
-        radial-gradient(circle at 14% 14%, rgba(125, 232, 255, 0.18), transparent 24rem),
-        radial-gradient(circle at 86% 20%, rgba(255, 141, 183, 0.15), transparent 22rem),
-        radial-gradient(circle at 60% 92%, rgba(147, 242, 188, 0.13), transparent 24rem),
-        linear-gradient(135deg, #07121f 0%, #11142a 48%, #061a25 100%);
+        radial-gradient(circle at 12% 16%, rgba(122, 230, 255, 0.18), transparent 24rem),
+        radial-gradient(circle at 86% 22%, rgba(255, 143, 189, 0.13), transparent 22rem),
+        radial-gradient(circle at 62% 92%, rgba(141, 242, 181, 0.12), transparent 24rem),
+        linear-gradient(135deg, #07111f 0%, #11152a 48%, #071d28 100%);
     }
 
-    .page {
+    main {
       width: min(1180px, 94vw);
       margin: 0 auto;
-      padding: 42px 0 48px;
+      padding: 42px 0 52px;
+    }
+
+    .hero,
+    .audio,
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)), rgba(4, 12, 25, 0.68);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.32), inset 0 0 50px rgba(122, 230, 255, 0.06);
+      backdrop-filter: blur(16px);
     }
 
     .hero {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      align-items: end;
       gap: 24px;
+      align-items: end;
       padding: 28px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)),
-        rgba(4, 12, 25, 0.68);
-      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35), inset 0 0 50px rgba(125, 232, 255, 0.06);
-      backdrop-filter: blur(16px);
     }
 
     h1 {
       margin: 0 0 10px;
-      font-size: clamp(2rem, 5vw, 4.6rem);
+      font-size: clamp(2rem, 5vw, 4.2rem);
       line-height: 1;
       letter-spacing: 0;
-      text-shadow: 0 0 28px rgba(125, 232, 255, 0.32);
+      text-shadow: 0 0 28px rgba(122, 230, 255, 0.32);
     }
 
-    .hero p {
-      max-width: 720px;
+    .hero p,
+    .audio p,
+    .note p {
       margin: 0;
       color: var(--muted);
-      font-size: clamp(1rem, 2vw, 1.12rem);
       line-height: 1.8;
+      font-size: clamp(1rem, 2vw, 1.12rem);
     }
 
-    .summary {
+    .metrics {
       display: grid;
       grid-template-columns: repeat(3, minmax(92px, 1fr));
       gap: 10px;
@@ -96,46 +98,46 @@
       font-size: 0.86rem;
     }
 
+    .audio {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+      padding: 16px;
+    }
+
+    .audio h2,
+    .section-title {
+      margin: 0 0 6px;
+      font-size: 1.18rem;
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 16px;
-      margin-top: 22px;
+      margin-top: 12px;
     }
 
     .card {
-      position: relative;
-      min-height: 255px;
+      min-height: 242px;
       padding: 18px;
-      overflow: hidden;
       border: 1px solid rgba(255, 255, 255, 0.13);
       border-radius: 16px;
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.035)),
-        rgba(5, 15, 31, 0.78);
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.035)), rgba(5, 15, 31, 0.78);
       box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
-      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+      transition: transform 180ms ease, border-color 180ms ease;
     }
 
     .card:hover {
       transform: translateY(-4px);
-      border-color: rgba(125, 232, 255, 0.46);
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)),
-        rgba(7, 20, 39, 0.86);
-    }
-
-    .card::before {
-      content: "";
-      position: absolute;
-      inset: -80px auto auto -80px;
-      width: 180px;
-      height: 180px;
-      border-radius: 50%;
-      background: var(--glow);
-      opacity: 0.28;
-      filter: blur(6px);
-      pointer-events: none;
+      border-color: rgba(122, 230, 255, 0.48);
     }
 
     .tag {
@@ -154,23 +156,22 @@
       width: 56px;
       height: 56px;
       margin: 18px 0 14px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 14px;
       color: #06121f;
       background: var(--accent);
       box-shadow: 0 0 28px var(--shadow);
       font-weight: 900;
-      font-size: 1rem;
+      font-size: 0.96rem;
     }
 
-    .card h2 {
+    .card h3 {
       margin: 0 0 8px;
-      font-size: 1.22rem;
-      line-height: 1.25;
+      font-size: 1.2rem;
+      line-height: 1.3;
     }
 
     .card p {
-      min-height: 72px;
+      min-height: 68px;
       margin: 0;
       color: var(--muted);
       line-height: 1.65;
@@ -195,9 +196,9 @@
       justify-content: center;
       min-height: 38px;
       padding: 9px 12px;
-      border: 1px solid rgba(125, 232, 255, 0.36);
+      border: 1px solid rgba(122, 230, 255, 0.36);
       border-radius: 9px;
-      background: rgba(125, 232, 255, 0.12);
+      background: rgba(122, 230, 255, 0.12);
       color: var(--text);
       font-size: 0.92rem;
       transition: transform 160ms ease, background 160ms ease;
@@ -205,23 +206,12 @@
 
     .btn:hover {
       transform: translateY(-2px);
-      background: rgba(125, 232, 255, 0.2);
-    }
-
-    .btn.secondary {
-      border-color: rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.07);
-      color: #d6e7ee;
+      background: rgba(122, 230, 255, 0.2);
     }
 
     .note {
       margin-top: 18px;
-      padding: 14px 16px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.055);
-      color: var(--muted);
-      line-height: 1.7;
+      padding: 16px;
     }
 
     @media (max-width: 920px) {
@@ -229,7 +219,7 @@
         grid-template-columns: 1fr;
       }
 
-      .summary {
+      .metrics {
         min-width: 0;
       }
 
@@ -239,7 +229,7 @@
     }
 
     @media (max-width: 620px) {
-      .page {
+      main {
         width: 95vw;
         padding-top: 18px;
       }
@@ -248,112 +238,145 @@
         padding: 18px;
       }
 
-      .summary,
+      .metrics,
       .grid {
         grid-template-columns: 1fr;
-      }
-
-      .card {
-        min-height: auto;
       }
     }
   </style>
 </head>
 <body>
-  <main class="page">
+  <main>
     <section class="hero">
       <div>
-        <h1>療育遊戲區</h1>
-        <p>這裡集中整理 7 個可直接執行的 HTML5 Canvas 遊戲，包含情緒療癒、創意繪畫、音樂創作、節奏反應、AI 對話與 RAG 問答。每個遊戲都附有說明檔，適合研習展示、課堂體驗與 AI 專案開發教學。</p>
+        <h1>Kiwi AIGC 互動程式作品集</h1>
+        <p>這是一組可發布到 GitHub Pages 的 HTML5 互動作品集，包含 AIGC 譜面生成、音訊分析、AI 編譜沙盒與多個遊戲化互動範例。此版本彙整 9 個 Kiwi 原始作品與 7 個 Canvas 遊戲，共 16 個作品，全部集中在同一個入口頁。</p>
       </div>
-      <div class="summary">
-        <div class="metric"><strong>7</strong><span>個遊戲</span></div>
-        <div class="metric"><strong>7</strong><span>份 read.md</span></div>
-        <div class="metric"><strong>0</strong><span>外部套件</span></div>
+      <div class="metrics">
+        <div class="metric"><strong>16</strong><span>個作品</span></div>
+        <div class="metric"><strong>1</strong><span>範例音樂檔</span></div>
+        <div class="metric"><strong>Pages</strong><span>可發布</span></div>
       </div>
     </section>
 
-    <section class="grid" aria-label="遊戲清單">
-      <article class="card" style="--accent:#69e7ff;--shadow:rgba(105,231,255,.42);--glow:radial-gradient(circle,rgba(105,231,255,.75),transparent 65%);">
-        <span class="tag">01｜射擊遊戲</span>
-        <div class="icon">SHIP</div>
-        <h2>星際防線</h2>
-        <p>控制太空船射擊敵人，體驗星空移動、生命值、分數與難度提升。</p>
-        <div class="actions">
-          <a class="btn" href="games/01-starfleet-defense/index.html">開始遊戲</a>
-          <a class="btn secondary" href="games/01-starfleet-defense/read.md">查看 read.md</a>
-        </div>
-      </article>
+    <section class="audio">
+      <div>
+        <h2>範例音樂檔</h2>
+        <p>音樂相關工具可先下載此 MP3，再於作品頁的音樂上傳欄位選取使用。</p>
+      </div>
+      <a class="btn" href="assets/audio/phigros-distorted-fate-sakuzyo-official.mp3" download>下載範例 MP3</a>
+    </section>
 
-      <article class="card" style="--accent:#ff8db7;--shadow:rgba(255,141,183,.42);--glow:radial-gradient(circle,rgba(255,141,183,.75),transparent 65%);">
-        <span class="tag">02｜情緒療癒遊戲</span>
-        <div class="icon">HEART</div>
-        <h2>心光泡泡</h2>
-        <p>控制愛心收集笑臉泡泡，避開哭臉泡泡，搭配彩虹背景與柔和漂浮動畫。</p>
-        <div class="actions">
-          <a class="btn" href="games/02-heart-bubbles/index.html">開始遊戲</a>
-          <a class="btn secondary" href="games/02-heart-bubbles/read.md">查看 read.md</a>
-        </div>
-      </article>
+    <section class="section">
+      <h2 class="section-title">AIGC 譜面生成與音訊工具</h2>
+      <div class="grid">
+        <article class="card" style="--accent:#7ae6ff;--shadow:rgba(122,230,255,.42);">
+          <span class="tag">AIGC 編譜</span><div class="icon">MAP</div>
+          <h3>AIGC 自動譜師測試系統</h3>
+          <p>多代理式 auto-mapping 測試頁，支援上傳音訊並模擬節奏點與譜面生成流程。</p>
+          <div class="actions"><a class="btn" href="apps/aigc-auto-mapping-agent/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#93f2bc;--shadow:rgba(147,242,188,.42);">
+          <span class="tag">AI 隨機生成</span><div class="icon">RAND</div>
+          <h3>AIGC 隨機多變性編譜沙盒</h3>
+          <p>透過隨機性、密集度與參數調整，快速產生不同風格的譜面配置。</p>
+          <div class="actions"><a class="btn" href="apps/ai-random-mapper/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#ffd36e;--shadow:rgba(255,211,110,.42);">
+          <span class="tag">音訊分析</span><div class="icon">AUDIO</div>
+          <h3>AI 聽音辨識自動編譜工作台</h3>
+          <p>以音訊特徵與視覺化方式模擬節奏辨識、譜面生成與即時測試。</p>
+          <div class="actions"><a class="btn" href="apps/audio-ai-mapper/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#ff8fbd;--shadow:rgba(255,143,189,.42);">
+          <span class="tag">互動工作台</span><div class="icon">LAB</div>
+          <h3>AIGC Auto-Mapping 互動工作台</h3>
+          <p>基礎互動式編譜工具頁，可觀察點位、參數與輸出結果。</p>
+          <div class="actions"><a class="btn" href="apps/interactive-mapping-workbench/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#ffffff;--shadow:rgba(255,255,255,.36);">
+          <span class="tag">osu! 沙盒</span><div class="icon">OSU</div>
+          <h3>AIGC 譜面生成與測試沙盒</h3>
+          <p>模擬 osu! 風格譜面生成與測試遊玩流程，適合展示 AI 生成關卡概念。</p>
+          <div class="actions"><a class="btn" href="apps/osu-ai-sandbox/">開啟作品</a></div>
+        </article>
+      </div>
+    </section>
 
-      <article class="card" style="--accent:#ffd36f;--shadow:rgba(255,211,111,.42);--glow:radial-gradient(circle,rgba(255,211,111,.75),transparent 65%);">
-        <span class="tag">03｜AI NPC 對話遊戲</span>
-        <div class="icon">NPC</div>
-        <h2>智慧校園導覽員</h2>
-        <p>在校園地圖探索，靠近 NPC 對話，用本機規則式系統查詢校園資訊。</p>
-        <div class="actions">
-          <a class="btn" href="games/03-smart-campus-guide/index.html">開始遊戲</a>
-          <a class="btn secondary" href="games/03-smart-campus-guide/read.md">查看 read.md</a>
-        </div>
-      </article>
-
-      <article class="card" style="--accent:#93f2bc;--shadow:rgba(147,242,188,.42);--glow:radial-gradient(circle,rgba(147,242,188,.75),transparent 65%);">
-        <span class="tag">04｜RAG 問答遊戲</span>
-        <div class="icon">RAG</div>
-        <h2>知識星球探險</h2>
-        <p>駕駛太空船進入知識星球，模擬檢索、來源呈現與整理回答的 RAG 流程。</p>
-        <div class="actions">
-          <a class="btn" href="games/04-knowledge-planet-rag/index.html">開始遊戲</a>
-          <a class="btn secondary" href="games/04-knowledge-planet-rag/read.md">查看 read.md</a>
-        </div>
-      </article>
-
-      <article class="card" style="--accent:#c7a7ff;--shadow:rgba(199,167,255,.42);--glow:radial-gradient(circle,rgba(199,167,255,.75),transparent 65%);">
-        <span class="tag">05｜創意藝術遊戲</span>
-        <div class="icon">ART</div>
-        <h2>夢想畫布</h2>
-        <p>自由繪畫與粒子光暈創作，支援一般畫筆、彩虹筆、星光筆與橡皮擦。</p>
-        <div class="actions">
-          <a class="btn" href="games/05-dream-canvas/index.html">開始遊戲</a>
-          <a class="btn secondary" href="games/05-dream-canvas/read.md">查看 read.md</a>
-        </div>
-      </article>
-
-      <article class="card" style="--accent:#8fb3ff;--shadow:rgba(143,179,255,.42);--glow:radial-gradient(circle,rgba(143,179,255,.75),transparent 65%);">
-        <span class="tag">06｜音樂創作遊戲</span>
-        <div class="icon">NOTE</div>
-        <h2>星光音樂盒</h2>
-        <p>點擊 8 個音符星球創作旋律，使用 Web Audio API 即時產生聲音。</p>
-        <div class="actions">
-          <a class="btn" href="games/06-starlight-music-box/index.html">開始遊戲</a>
-          <a class="btn secondary" href="games/06-starlight-music-box/read.md">查看 read.md</a>
-        </div>
-      </article>
-
-      <article class="card" style="--accent:#ffb86b;--shadow:rgba(255,184,107,.42);--glow:radial-gradient(circle,rgba(255,184,107,.75),transparent 65%);">
-        <span class="tag">07｜節奏反應遊戲</span>
-        <div class="icon">BEAT</div>
-        <h2>彩虹節奏島</h2>
-        <p>使用 D、F、J、K 命中四軌音符，訓練節奏反應並挑戰評級。</p>
-        <div class="actions">
-          <a class="btn" href="games/07-rainbow-rhythm-island/index.html">開始遊戲</a>
-          <a class="btn secondary" href="games/07-rainbow-rhythm-island/read.md">查看 read.md</a>
-        </div>
-      </article>
+    <section class="section">
+      <h2 class="section-title">遊戲化互動範例</h2>
+      <div class="grid">
+        <article class="card" style="--accent:#b9e47f;--shadow:rgba(185,228,127,.42);">
+          <span class="tag">療癒互動</span><div class="icon">ZEN</div>
+          <h3>治癒系多肉植物溫室</h3>
+          <p>溫柔放鬆的多肉植物互動體驗，適合療癒展示與創意課程範例。</p>
+          <div class="actions"><a class="btn" href="apps/zen-succulent-greenhouse/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#ffb86b;--shadow:rgba(255,184,107,.42);">
+          <span class="tag">校園遊戲</span><div class="icon">DASH</div>
+          <h3>午餐爭奪戰：福利社衝鋒</h3>
+          <p>校園題材的趣味衝刺遊戲，結合操作反應與角色移動。</p>
+          <div class="actions"><a class="btn" href="apps/cafeteria-dash-agent/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#c7a7ff;--shadow:rgba(199,167,255,.42);">
+          <span class="tag">精靈遊戲</span><div class="icon">PASS</div>
+          <h3>歐帕小精靈的期末大作戰</h3>
+          <p>以期末挑戰為主題的遊戲化互動作品，適合作為教學活動範例。</p>
+          <div class="actions"><a class="btn" href="apps/all-pass-sprite-agent/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#8fb3ff;--shadow:rgba(143,179,255,.42);">
+          <span class="tag">射擊遊戲</span><div class="icon">SHIP</div>
+          <h3>太空探險者</h3>
+          <p>2D 太空射擊遊戲，包含移動、射擊、敵人與分數系統。</p>
+          <div class="actions"><a class="btn" href="apps/space-adventurer-shooter/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#69e7ff;--shadow:rgba(105,231,255,.42);">
+          <span class="tag">射擊遊戲</span><div class="icon">SHIP</div>
+          <h3>星際防線</h3>
+          <p>控制太空船射擊敵人，體驗星空移動、生命值、分數與難度提升。</p>
+          <div class="actions"><a class="btn" href="apps/01-starfleet-defense/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#ff8db7;--shadow:rgba(255,141,183,.42);">
+          <span class="tag">情緒療癒遊戲</span><div class="icon">HEART</div>
+          <h3>心光泡泡</h3>
+          <p>控制愛心收集笑臉泡泡，避開哭臉泡泡，搭配彩虹背景與柔和漂浮動畫。</p>
+          <div class="actions"><a class="btn" href="apps/02-heart-bubbles/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#ffd36f;--shadow:rgba(255,211,111,.42);">
+          <span class="tag">AI NPC 對話遊戲</span><div class="icon">NPC</div>
+          <h3>智慧校園導覽員</h3>
+          <p>在校園地圖探索，靠近 NPC 對話，用本機規則式系統查詢校園資訊。</p>
+          <div class="actions"><a class="btn" href="apps/03-smart-campus-guide/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#93f2bc;--shadow:rgba(147,242,188,.42);">
+          <span class="tag">RAG 問答遊戲</span><div class="icon">RAG</div>
+          <h3>知識星球探險</h3>
+          <p>駕駛太空船進入知識星球，模擬檢索、來源呈現與整理回答的 RAG 流程。</p>
+          <div class="actions"><a class="btn" href="apps/04-knowledge-planet-rag/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#c7a7ff;--shadow:rgba(199,167,255,.42);">
+          <span class="tag">創意藝術遊戲</span><div class="icon">ART</div>
+          <h3>夢想畫布</h3>
+          <p>自由繪畫與粒子光暈創作，支援一般畫筆、彩虹筆、星光筆與橡皮擦。</p>
+          <div class="actions"><a class="btn" href="apps/05-dream-canvas/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#8fb3ff;--shadow:rgba(143,179,255,.42);">
+          <span class="tag">音樂創作遊戲</span><div class="icon">NOTE</div>
+          <h3>星光音樂盒</h3>
+          <p>點擊 8 個音符星球創作旋律，使用 Web Audio API 即時產生聲音。</p>
+          <div class="actions"><a class="btn" href="apps/06-starlight-music-box/">開啟作品</a></div>
+        </article>
+        <article class="card" style="--accent:#ffb86b;--shadow:rgba(255,184,107,.42);">
+          <span class="tag">節奏反應遊戲</span><div class="icon">BEAT</div>
+          <h3>彩虹節奏島</h3>
+          <p>使用 D、F、J、K 命中四軌音符，訓練節奏反應並挑戰評級。</p>
+          <div class="actions"><a class="btn" href="apps/07-rainbow-rhythm-island/">開啟作品</a></div>
+        </article>
+      </div>
     </section>
 
     <section class="note">
-      執行方式：點選任一「開始遊戲」即可進入對應遊戲；點選「查看 read.md」可閱讀該遊戲的提示詞、玩法與教學說明。
+      <p>發布注意：本版本已排除 Windows 捷徑檔，並保留音訊檔於 assets/audio/。所有連結使用英文路徑，避免 GitHub Pages 中文網址造成 404。</p>
     </section>
   </main>
 </body>

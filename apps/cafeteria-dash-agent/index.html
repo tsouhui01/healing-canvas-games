@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>午餐爭奪戰：福利社衝鋒 - Cafeteria Dash Agent</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background-color: #f0f4f8;
+            color: #334e68;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            color: #102a43;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        .subtitle {
+            font-size: 14px;
+            margin-bottom: 15px;
+            color: #627d98;
+        }
+        #gameContainer {
+            position: relative;
+            background: #ffffff;
+            border: 4px solid #bcccdc;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        .instructions {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #486581;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .highlight {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        .agent-highlight {
+            color: #1976d2;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>午餐爭奪戰：福利社衝鋒</h1>
+    <div class="subtitle">目標：下課鐘聲響了！在限量便當賣完前衝到福利社吧！</div>
+
+    <div id="gameContainer">
+        <canvas id="dashCanvas" width="700" height="400"></canvas>
+    </div>
+
+    <div class="instructions">
+        【手動模式】使用 <span class="highlight">W / S</span> 或 <span class="highlight">方向鍵 ↑ / ↓</span> 切換跑道，<span class="highlight">D 或 →</span> 衝刺解圍<br>
+        【AI 託管】按下 <span class="agent-highlight">Enter 鍵</span> 可切換為 <span class="agent-highlight">Agent 智能自動避障與衝鋒模式</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('dashCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 遊戲狀態
+        const STATE_START = 'START';
+        const STATE_PLAYING = 'PLAYING';
+        const STATE_WIN = 'WIN';
+        const STATE_GAMEOVER = 'GAMEOVER';
+        let gameState = STATE_START;
+
+        // 模式設定
+        let isAgentMode = false; // 是否開啟 AI 智能模式
+
+        // 校園跑道設定 (3條跑道)
+        const lanes = [110, 200, 290]; 
+        
+        // 遊戲核心數據
+        let distanceToGoal = 3000; // 距離福利社剩餘公尺
+        let gameSpeed = 5;
+        let lives = 3;
+        let stamina = 100; // 體力值
+        let score = 0;
+        let schoolTimer = 0;
+
+        // 玩家定義
+        const player = {
+            targetLane: 1, // 預設中間跑道 (索引 0, 1, 2)
+            currentY: 200,
+            x: 100,
+            radius: 20,
+            color: '#1976d2',
+            dashCooldown: 0,
+            isDashing: false,
+            dashTimer: 0,
+            
+            update() {
+                // 平滑切換跑道效果 (Lerp)
+                const targetY = lanes[this.targetLane];
+                this.currentY += (targetY - this.currentY) * 0.2;
+
+                // 處理衝刺
+                if (this.isDashing) {
+                    this.dashTimer--;
+                    if (this.dashTimer <= 0) this.isDashing = false;
+                }
+                if (this.dashCooldown > 0) this.dashCooldown--;
+            },
+            
+            draw() {
+                ctx.save();
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = isAgentMode ? '#4caf50' : this.color;
+                
+                // 繪製奔跑學生主體 (圓形頭與身體意象)
+                ctx.fillStyle = isAgentMode ? '#4caf50' : this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.currentY, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 畫出帥氣的制服領帶
+                ctx.fillStyle = '#ffb300';
+                ctx.beginPath();
+                ctx.moveTo(this.x + 5, this.currentY);
+                ctx.lineTo(this.x + 18, this.currentY - 4);
+                ctx.lineTo(this.x + 15, this.currentY + 4);
+                ctx.closePath();
+                ctx.fill();
+
+                // Dashing 特效
+                if (this.isDashing) {
+                    ctx.fillStyle = 'rgba(25, 118, 210, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(this.x - 20, this.currentY, this.radius - 3, 0, Math.PI*2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+        };
+
+        // 障礙物與食物陣列
+        let obstacles = [];
+        let foods = [];
+
+        // 重置遊戲
+        function resetGame() {
+            distanceToGoal = 3000;
+            gameSpeed = 5;
+            lives = 3;
+            stamina = 100;
+            score = 0;
+            obstacles = [];
+            foods = [];
+            player.targetLane = 1;
+            player.currentY = lanes[1];
+            gameState = STATE_PLAYING;
+        }
+
+        // 鍵盤監聽
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Enter') {
+                if (gameState === STATE_START || gameState === STATE_GAMEOVER || gameState === STATE_WIN) {
+                    resetGame();
+                } else {
+                    isAgentMode = !isAgentMode; // 遊戲中切換手動/自動
+                }
+            }
+
+            if (gameState !== STATE_PLAYING || isAgentMode) return;
+
+            // 手動模式下的控制
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+                if (player.targetLane > 0) player.targetLane--;
+            }
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+                if (player.targetLane < 2) player.targetLane++;
+            }
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                if (player.dashCooldown === 0 && stamina >= 20) {
+                    player.isDashing = true;
+                    player.dashTimer = 15;
+                    player.dashCooldown = 40;
+                    stamina -= 20;
+                }
+            }
+        });
+
+        // --- AI Agent 智能核心避障演算法 ---
+        function runAgentAI() {
+            if (!isAgentMode || gameState !== STATE_PLAYING) return;
+
+            // 1. 自動恢復體力並在安全時自動衝刺
+            if (stamina >= 50 && !player.isDashing && player.dashCooldown === 0) {
+                // 如果前方一定距離內沒有直接威脅，就衝刺加速
+                let dangerImmediatelyAhead = obstacles.some(obs => obs.lane === player.targetLane && obs.x - player.x > 0 && obs.x - player.x < 180);
+                if (!dangerImmediatelyAhead) {
+                    player.isDashing = true;
+                    player.dashTimer = 15;
+                    player.dashCooldown = 40;
+                    stamina -= 20;
+                }
+            }
+
+            // 2. 探測三條跑道上的威脅與獎勵，實施路徑決策
+            let laneWeights = [0, 0, 0]; // 分數越低代表危險度越高，越不建議走
+
+            for (let l = 0; l < 3; l++) {
+                // 檢查該跑道上最近的障礙物
+                let closestObs = null;
+                let minDistObs = 9999;
+                obstacles.forEach(obs => {
+                    if (obs.lane === l && obs.x > player.x) {
+                        let d = obs.x - player.x;
+                        if (d < minDistObs) {
+                            minDistObs = d;
+                            closestObs = obs;
+                        }
+                    }
+                });
+
+                // 檢查該跑道上最近的食物
+                let closestFood = null;
+                let minDistFood = 9999;
+                foods.forEach(f => {
+                    if (f.lane === l && f.x > player.x) {
+                        let d = f.x - player.x;
+                        if (d < minDistFood) {
+                            minDistFood = d;
+                            closestFood = f;
+                        }
+                    }
+                });
+
+                // 計算每條跑道的權重評分
+                if (minDistObs < 160) {
+                    // 距離越近，扣分越重 (極度危險)
+                    laneWeights[l] -= (2000 / minDistObs);
+                }
+                if (minDistFood < 250) {
+                    // 前方有食物，加分
+                    laneWeights[l] += (150 / minDistFood);
+                }
+
+                // 懲罰過度頻繁的跨跑道移動 (偏好維持原跑道)
+                if (l !== player.targetLane) {
+                    laneWeights[l] -= 2; 
+                }
+            }
+
+            // 3. 找出權重最優的跑道
+            let bestLane = player.targetLane;
+            let maxWeight = laneWeights[player.targetLane];
+            for (let l = 0; l < 3; l++) {
+                if (laneWeights[l] > maxWeight) {
+                    maxWeight = laneWeights[l];
+                    bestLane = l;
+                }
+            }
+
+            // 4. 執行動作控制
+            if (bestLane !== player.targetLane) {
+                player.targetLane = bestLane;
+            }
+        }
+
+        // --- 核心邏輯更新 ---
+        function update() {
+            schoolTimer++;
+
+            if (gameState !== STATE_PLAYING) return;
+
+            // 執行 Agent AI 感應
+            runAgentAI();
+
+            // 更新玩家狀態
+            player.update();
+
+            // 體力自動回復
+            if (stamina < 100 && schoolTimer % 3 === 0) stamina++;
+
+            // 動態調整前進速度 (衝刺會暴增速度)
+            let currentSpeed = player.isDashing ? gameSpeed * 2.2 : gameSpeed;
+            distanceToGoal -= Math.floor(currentSpeed / 2);
+            score += 1;
+
+            if (distanceToGoal <= 0) {
+                distanceToGoal = 0;
+                gameState = STATE_WIN;
+            }
+
+            // 每隔一段距離提升基礎難度速度
+            gameSpeed = 5 + Math.floor((3000 - distanceToGoal) / 700);
+
+            // 生成障礙物 (巡查老師、留堂課桌椅)
+            if (schoolTimer % Math.max(30, 70 - gameSpeed * 3) === 0) {
+                let randomLane = Math.floor(Math.random() * 3);
+                let isTeacher = Math.random() > 0.5;
+                obstacles.push({
+                    x: canvas.width + 30,
+                    lane: randomLane,
+                    width: isTeacher ? 26 : 35,
+                    height: isTeacher ? 40 : 25,
+                    type: isTeacher ? 'TEACHER' : 'DESK',
+                    color: isTeacher ? '#d32f2f' : '#795548'
+                });
+            }
+
+            // 生成補給品 (雞排、珍奶)
+            if (schoolTimer % 110 === 0) {
+                let randomLane = Math.floor(Math.random() * 3);
+                foods.push({
+                    x: canvas.width + 20,
+                    lane: randomLane,
+                    radius: 12,
+                    color: Math.random() > 0.4 ? '#ff9800' : '#e91e63' // 雞排金黃/珍奶粉紅
+                });
+            }
+
+            // 移動並管理障礙物
+            obstacles.forEach((obs, index) => {
+                obs.x -= currentSpeed;
+                if (obs.x < -40) obstacles.splice(index, 1);
+
+                // 碰撞偵測 (AABB)
+                let obsY = lanes[obs.lane];
+                if (Math.abs(player.x - obs.x) < (player.radius + obs.width/2) && 
+                    Math.abs(player.currentY - obsY) < (player.radius + obs.height/2)) {
+                    
+                    // 撞到障礙物
+                    obstacles.splice(index, 1);
+                    if (player.isDashing && obs.type === 'DESK') {
+                        // 衝刺狀態可以撞飛課桌椅獲得額外分數！
+                        score += 200;
+                    } else {
+                        // 否則扣命、扣大體力
+                        lives--;
+                        stamina = Math.max(0, stamina - 30);
+                        if (lives <= 0) gameState = STATE_GAMEOVER;
+                    }
+                }
+            });
+
+            // 移動並管理食物補給
+            foods.forEach((food, index) => {
+                food.x -= currentSpeed;
+                if (food.x < -30) foods.splice(index, 1);
+
+                // 碰撞發生命中
+                let foodY = lanes[food.lane];
+                let dist = Math.hypot(player.x - food.x, player.currentY - foodY);
+                if (dist < player.radius + food.radius) {
+                    foods.splice(index, 1);
+                    stamina = Math.min(100, stamina + 35); // 回復體力
+                    score += 150;
+                }
+            });
+        }
+
+        // --- 畫面繪製 ---
+        function draw() {
+            // 清除畫布，畫出灰色走廊背景
+            ctx.fillStyle = '#f0f4f8';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 繪製跑道分隔線
+            ctx.strokeStyle = '#cdbeab';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([15, 15]);
+            ctx.beginPath();
+            ctx.moveTo(0, 155); ctx.lineTo(canvas.width, 155);
+            ctx.moveTo(0, 245); ctx.lineTo(canvas.width, 245);
+            ctx.stroke();
+            ctx.setLineDash([]); // 還原實線
+
+            // 畫出走廊兩側裝飾牆
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(0, 0, canvas.width, 65);
+            ctx.fillRect(0, 340, canvas.width, 60);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(0, 60, canvas.width, 5);
+            ctx.fillRect(0, 340, canvas.width, 5);
+
+            // 繪製食物補給品
+            foods.forEach(food => {
+                ctx.save();
+                ctx.fillStyle = food.color;
+                ctx.beginPath();
+                ctx.arc(food.x, lanes[food.lane], food.radius, 0, Math.PI * 2);
+                ctx.fill();
+                // 畫一個小蝴蝶結或亮點
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(food.x - 3, lanes[food.lane] - 3, 5, 5);
+                ctx.restore();
+            });
+
+            // 繪製障礙物
+            obstacles.forEach(obs => {
+                ctx.save();
+                ctx.fillStyle = obs.color;
+                let obsY = lanes[obs.lane];
+                if (obs.type === 'TEACHER') {
+                    // 畫老師外形 (長方形帶眼鏡)
+                    ctx.fillRect(obs.x - obs.width/2, obsY - obs.height/2, obs.width, obs.height);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(obs.x - obs.width/2 + 2, obsY - obs.height/2 + 6, obs.width - 4, 6); // 眼鏡
+                } else {
+                    // 畫課桌椅
+                    ctx.fillRect(obs.x - obs.width/2, obsY - obs.height/2, obs.width, obs.height);
+                    ctx.fillStyle = '#5d4037';
+                    ctx.fillRect(obs.x - obs.width/2 + 4, obsY - obs.height/2 + 4, obs.width - 8, obs.height - 8);
+                }
+                ctx.restore();
+            });
+
+            // 繪製玩家
+            player.draw();
+
+            // 繪製頂部智慧儀表板 UI
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, 55);
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = 'bold 13px "PingFang TC"';
+            ctx.fillText(`剩餘距離: ${distanceToGoal}m`, 20, 32);
+
+            ctx.fillStyle = '#fbbf24';
+            ctx.fillText(`得分: ${score}`, 160, 32);
+
+            // 體力條
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('體力:', 280, 32);
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(320, 20, 100, 14);
+            ctx.fillStyle = stamina > 30 ? '#10b981' : '#ef4444';
+            ctx.fillRect(320, 20, stamina, 14);
+
+            // 生命值
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('生命狀態:', 440, 32);
+            for(let i=0; i<3; i++) {
+                ctx.fillStyle = i < lives ? '#ef4444' : '#334155';
+                ctx.beginPath();
+                ctx.arc(510 + (i * 22), 27, 7, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // 模式文字
+            ctx.textAlign = 'right';
+            if (isAgentMode) {
+                ctx.fillStyle = '#4caf50';
+                ctx.fillText('● AI AGENT 託管中', canvas.width - 20, 32);
+            } else {
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText('● 手動操作模式', canvas.width - 20, 32);
+            }
+            ctx.textAlign = 'left'; // 還原對齊
+
+            // 各種場景狀態 UI 覆蓋
+            if (gameState === STATE_START) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                ctx.fillRect(0, 55, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 24px "PingFang TC"';
+                ctx.textAlign = 'center';
+                ctx.fillText('午餐爭奪戰：福利社衝鋒', canvas.width/2, canvas.height/2);
+                ctx.font = '15px "PingFang TC"';
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText('按下 ENTER 鍵 開啟奔跑任務', canvas.width/2, canvas.height/2 + 40);
+                ctx.textAlign = 'left';
+            }
+
+            if (gameState === STATE_GAMEOVER) {
+                ctx.fillStyle = 'rgba(211, 47, 47, 0.85)';
+                ctx.fillRect(0, 55, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 28px "PingFang TC"';
+                ctx.textAlign = 'center';
+                ctx.fillText('任務失敗！被老師抓去訓話了', canvas.width/2, canvas.height/2 - 10);
+                ctx.font = '16px "PingFang TC"';
+                ctx.fillText(`最終紀錄積分: ${score}`, canvas.width/2, canvas.height/2 + 30);
+                ctx.fillStyle = '#ffeb3b';
+                ctx.fillText('按下 ENTER 鍵 再次嘗試衝鋒', canvas.width/2, canvas.height/2 + 70);
+                ctx.textAlign = 'left';
+            }
+
+            if (gameState === STATE_WIN) {
+                ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+                ctx.fillRect(0, 55, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 32px "PingFang TC"';
+                ctx.textAlign = 'center';
+                ctx.fillText('🎉 搶購成功！搶到限量大便當！', canvas.width/2, canvas.height/2 - 10);
+                ctx.font = '18px "PingFang TC"';
+                ctx.fillText(`最終得勝總分: ${score}`, canvas.width/2, canvas.height/2 + 30);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('按下 ENTER 鍵 重新開啟新一輪挑戰', canvas.width/2, canvas.height/2 + 75);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        // 遊戲主迴圈
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>

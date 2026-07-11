@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 聽音辨識自動編譜與即時測試工作台</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #ff66aa; margin-bottom: 5px; }
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+            margin-top: 15px;
+        }
+        .sidebar {
+            flex: 1;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .game-area {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background: #050505;
+            border: 3px solid #ff66aa;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(255, 102, 170, 0.15);
+        }
+        button, input[type="file"] {
+            background-color: #252525;
+            color: white;
+            border: 1px solid #444;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        input[type="file"] { background-color: #2a2a2a; width: calc(100% - 26px); }
+        button:hover { background-color: #333; border-color: #ff66aa; }
+        .btn-action { background-color: #ff66aa; border: none; color: white; font-size: 15px;}
+        .btn-action:hover { background-color: #ff3388; }
+        .btn-mode { background-color: #33aaff; border: none; color: white; }
+        .btn-mode:hover { background-color: #0088ee; }
+        .status-box {
+            background: #000;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 20px;
+            text-align: center;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        .log-console {
+            background: #000;
+            font-family: monospace;
+            padding: 10px;
+            height: 140px;
+            overflow-y: auto;
+            border-radius: 4px;
+            color: #00ff00;
+            font-size: 12px;
+        }
+        .info-card {
+            font-size: 13px;
+            color: #bbb;
+            background: #252525;
+            padding: 12px;
+            border-radius: 4px;
+            line-height: 1.6;
+        }
+        .highlight { color: #ff66aa; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div style="position:fixed;right:16px;bottom:16px;z-index:9999;padding:10px 12px;border:1px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(0,0,0,.74);color:#fff;font-family:'Segoe UI','Noto Sans TC',sans-serif;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.35)">??????<a href="../../assets/audio/phigros-distorted-fate-sakuzyo-official.mp3" download style="color:#7de8ff;text-decoration:none;font-weight:700">?? MP3</a></div>
+
+    <h1>AI 聽音辨識自動編譜與即時測試工作台</h1>
+    <p style="color: #aaa; margin: 0;">真正讀取你的 MP3 ➔ AI 提取音訊重低音 ➔ 生成對齊音樂的譜面並開放試玩</p>
+
+    <div class="main-layout">
+        <div class="sidebar">
+            <div class="status-box" id="scoreDisplay">SCORE: 000000</div>
+            
+            <label><b>🎵 第一步：上傳你的音樂檔案 (.mp3/.wav)</b></label>
+            <input type="file" id="audioFile" accept="audio/*">
+
+            <label><b>🤖 第二步：選擇 AI 空間流向風格</b></label>
+            <select id="flowStyle" style="padding: 10px; background: #333; color: white; border: none; border-radius: 4px;">
+                <option value="jumps">節奏大跳流 (Jump Style)</option>
+                <option value="stream">幾何流線流 (Stream Style)</option>
+                <option value="star">五角星跳躍流 (Star Style)</option>
+            </select>
+
+            <button id="btnAnalyze" class="btn-action">⚡ 啟動 AI 聽音辨識並生成譜面</button>
+            <button id="btnToggleMode" class="btn-mode" disabled>🎮 進入 [同步音訊測試遊玩]</button>
+            <button id="btnExport" style="background-color: #44aa44; border: none;" disabled>💾 匯出至 osu!.exe</button>
+
+            <div class="info-card">
+                <b>💡 系統運作原理：</b><br>
+                當你點擊「啟動 AI 聽音辨識」，瀏覽器會調用內建解碼器，快速掃描整首 MP3 的音軌能量波形。當偵測到音樂中出現明顯示的<span class="highlight">重低音（Kick/Bass）</span>或強烈節奏點時，AI 就會在那一毫秒自動生成一個符合風格的音符物件！
+            </div>
+
+            <div class="log-console" id="logConsole">> 系統就緒。請先選擇並上傳 MP3 音檔...</div>
+        </div>
+
+        <div class="game-area">
+            <canvas id="gameCanvas" width="768" height="576"></canvas>
+            <div style="margin-top: 10px; color: #888; font-size: 13px;" id="timeDisplay">
+                音樂進度: 00:00 / 00:00 | 網頁解析度基準: 512x384 (OsuPixels)
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const logConsole = document.getElementById('logConsole');
+        const timeDisplay = document.getElementById('timeDisplay');
+        
+        const SCALE = 1.5;
+        const CIRCLE_RADIUS = 24; 
+        
+        // 音訊與核心數據
+        let audioContext = null;
+        let audioBuffer = null;
+        let audioSource = null;
+        let originalFileName = "phigros-distorted-fate-sakuzyo-official.mp3";
+        
+        let hitObjects = [];
+        let isPlayingMode = false;
+        let selectedObj = null;
+        let score = 0;
+        
+        // 時間軸控制
+        let playbackStartTime = 0;
+        let pauseTimeOffset = 0; 
+        let animationFrameId = null;
+        let currentMsTime = 0;
+
+        function printLog(msg) {
+            logConsole.innerHTML += `<br>> ${msg}`;
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        // 當使用者選擇檔案時更新檔名
+        document.getElementById('audioFile').addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                originalFileName = e.target.files[0].name;
+                printLog(`已載入本地音樂：${originalFileName}，請點擊下方按鈕讓 AI 開始聽歌。`);
+                // 重置狀態
+                document.getElementById('btnToggleMode').disabled = true;
+                document.getElementById('btnExport').disabled = true;
+                hitObjects = [];
+                drawEditor();
+            }
+        });
+
+        // --- 🤖 AI 聽音辨識（Audio Analysis Agent）演算法 ---
+        document.getElementById('btnAnalyze').addEventListener('click', async () => {
+            const fileInput = document.getElementById('audioFile');
+            if (fileInput.files.length === 0) {
+                alert("請先選擇一個 MP3 或 WAV 音訊檔案！");
+                return;
+            }
+            
+            printLog("🤖 AI 音訊分析代理啟動... 正在解碼音訊中，請稍候...");
+            const file = fileInput.files[0];
+            const arrayBuffer = await file.arrayBuffer();
+            
+            // 初始化音訊上下文並解碼
+            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            try {
+                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                printLog(`[Audio Agent] 解碼成功！音樂長度: ${audioBuffer.duration.toFixed(1)} 秒`);
+                
+                // 執行節奏脈衝提取演算法 (Onset Detection)
+                analyzeAudioTracks();
+            } catch (err) {
+                printLog(`[Error] 音訊解碼失敗，請確認檔案格式是否正確。`);
+                console.error(err);
+            }
+        });
+
+        function analyzeAudioTracks() {
+            printLog("[AI Core] 正在進行多頻段重低音與能量閾值運算...");
+            
+            // 獲取左聲道數據進行處理
+            const rawData = audioBuffer.getChannelData(0);
+            const sampleRate = audioBuffer.sampleRate;
+            
+            // 將長音頻切成多個採樣視窗（Window 大小約 20ms）
+            const windowSize = Math.floor(sampleRate * 0.02);
+            const stepSize = Math.floor(sampleRate * 0.01); // 10ms 跳躍步長
+            
+            hitObjects = [];
+            score = 0;
+            scoreDisplay.innerText = "SCORE: 000000";
+
+            let energies = [];
+            for (let i = 0; i < rawData.length - windowSize; i += stepSize) {
+                // 計算當前視窗的平方根能量 (RMS)
+                let sum = 0;
+                for (let j = 0; j < windowSize; j++) {
+                    sum += rawData[i + j] * rawData[i + j];
+                }
+                let rms = Math.sqrt(sum / windowSize);
+                let timeMs = Math.floor((i / sampleRate) * 1000);
+                energies.push({ time: timeMs, val: rms });
+            }
+
+            // 局部動態閾值判斷 (動態峰值提取)
+            const style = document.getElementById('flowStyle').value;
+            let angle = 0;
+            let lastX = 256; let lastY = 192;
+            let lastNoteTime = 0;
+            const minNoteInterval = 280; // 限制音符最短間隔（毫秒），避免過度密集
+
+            for (let i = 15; i < energies.length - 15; i++) {
+                let currentEnergy = energies[i].val;
+                
+                // 計算前後局部區域（約300ms內）的平均能量
+                let localSum = 0;
+                for (let j = i - 15; j <= i + 15; j++) localSum += energies[j].val;
+                let localAverage = localSum / 31;
+
+                // 核心決策：如果當前能量大幅超過局部平均，且大於一個基礎閾值，判定為「強烈鼓點/節奏點」
+                if (currentEnergy > localAverage * 1.4 && currentEnergy > 0.08) {
+                    let targetTime = energies[i].time;
+                    
+                    if (targetTime - lastNoteTime > minNoteInterval) {
+                        let x = 256, y = 192;
+                        let index = hitObjects.length;
+
+                        // AI 幾何流向演算法規劃座標
+                        if (style === 'jumps') {
+                            angle += (Math.PI * 3.2) / 5;
+                            let radius = 130 + Math.sin(index) * 20;
+                            x = 256 + radius * Math.cos(angle);
+                            y = 192 + radius * Math.sin(angle);
+                        } else if (style === 'stream') {
+                            angle += 0.4;
+                            lastX += 35 * Math.cos(angle);
+                            lastY += 35 * Math.sin(angle);
+                            if(lastX < 50 || lastX > 462) lastX = 256;
+                            if(lastY < 50 || lastY > 334) lastY = 192;
+                            x = lastX; y = lastY;
+                        } else if (style === 'star') {
+                            angle += (Math.PI * 4) / 5; // 完美的五角星大跳流向
+                            let radius = 140;
+                            x = 256 + radius * Math.cos(angle);
+                            y = 192 + radius * Math.sin(angle);
+                        }
+
+                        x = Math.max(40, Math.min(472, x));
+                        y = Math.max(40, Math.min(344, y));
+
+                        hitObjects.push({
+                            id: index + 1,
+                            x: Math.round(x),
+                            y: Math.round(y),
+                            time: targetTime,
+                            hit: false,
+                            combo: (index % 4 === 0)
+                        });
+
+                        lastNoteTime = targetTime;
+                    }
+                }
+            }
+
+            printLog(`[Success] AI 聽譜完成！共自動抓到 ${hitObjects.length} 個符合音樂節奏的音符！`);
+            document.getElementById('btnToggleMode').disabled = false;
+            document.getElementById('btnExport').disabled = false;
+            drawEditor();
+        }
+
+        // --- 🎨 繪製：靜態編輯修正模式 ---
+        function drawEditor() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 繪製網格輔助線
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(256*SCALE, 0); ctx.lineTo(256*SCALE, canvas.height);
+            ctx.moveTo(0, 192*SCALE); ctx.lineTo(canvas.width, 192*SCALE);
+            ctx.stroke();
+
+            if (hitObjects.length > 1) {
+                ctx.strokeStyle = 'rgba(255, 102, 170, 0.15)'; ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(hitObjects[0].x * SCALE, hitObjects[0].y * SCALE);
+                for(let i=1; i<hitObjects.length; i++) {
+                    ctx.lineTo(hitObjects[i].x * SCALE, hitObjects[i].y * SCALE);
+                }
+                ctx.stroke();
+            }
+
+            hitObjects.forEach(obj => {
+                const cx = obj.x * SCALE; const cy = obj.y * SCALE;
+                const r = CIRCLE_RADIUS * SCALE;
+
+                ctx.fillStyle = obj.combo ? '#55ccff' : '#ff66aa';
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+
+                ctx.fillStyle = '#fff'; ctx.font = '14px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(obj.id, cx, cy);
+            });
+            updateTimeDisplay(0);
+        }
+
+        // --- 🎮 動態同步更新：測試遊玩模式 ---
+        function updatePlayFrame() {
+            let elapsedSec = (performance.now() - playbackStartTime) / 1000;
+            currentMsTime = Math.floor(elapsedSec * 1000);
+            
+            updateTimeDisplay(elapsedSec);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const approachTimeWindow = 600; // 提前600ms顯示外圈縮小
+
+            hitObjects.forEach(obj => {
+                if (obj.hit) return;
+                if (currentMsTime < obj.time - approachTimeWindow) return;
+                if (currentMsTime > obj.time + 150) return; // 漏擊(Miss)過期
+
+                const cx = obj.x * SCALE; const cy = obj.y * SCALE;
+                const r = CIRCLE_RADIUS * SCALE;
+
+                let timeLeft = obj.time - currentMsTime;
+                if (timeLeft > 0) {
+                    let ratio = 1 + (timeLeft / approachTimeWindow) * 2;
+                    ctx.strokeStyle = 'rgba(255, 102, 170, 0.6)'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(cx, cy, r * ratio, 0, Math.PI*2); ctx.stroke();
+                }
+
+                ctx.fillStyle = obj.combo ? '#55ccff' : '#ff66aa';
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+                
+                ctx.fillStyle = '#fff'; ctx.font = '16px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(obj.id, cx, cy);
+            });
+
+            if (isPlayingMode) {
+                // 如果音樂播完，自動切回
+                if (elapsedSec >= audioBuffer.duration) {
+                    stopAudioPlay();
+                } else {
+                    animationFrameId = requestAnimationFrame(updatePlayFrame);
+                }
+            }
+        }
+
+        function updateTimeDisplay(currentSec) {
+            let totalSec = audioBuffer ? audioBuffer.duration : 0;
+            let format = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, '0');
+            timeDisplay.innerText = `音樂進度: ${format(currentSec)} / ${format(totalSec)} | 網頁解析度基準: 512x384 (OsuPixels)`;
+        }
+
+        // --- 🎹 鍵盤滑鼠敲擊判定 ---
+        let mouseX = 256; let mouseY = 192;
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) / SCALE;
+            mouseY = (e.clientY - rect.top) / SCALE;
+
+            if (!isPlayingMode && selectedObj) {
+                selectedObj.x = Math.round(Math.max(30, Math.min(482, mouseX)));
+                selectedObj.y = Math.round(Math.max(30, Math.min(354, mouseY)));
+                drawEditor();
+            }
+        });
+
+        function triggerHit() {
+            if (!isPlayingMode) return;
+            let target = hitObjects.find(obj => {
+                if (obj.hit) return false;
+                let distance = Math.sqrt((obj.x - mouseX) ** 2 + (obj.y - mouseY) ** 2);
+                let timeOffset = Math.abs(currentMsTime - obj.time);
+                return distance <= CIRCLE_RADIUS && timeOffset <= 100; // 100ms 寬容判定窗
+            });
+
+            if (target) {
+                target.hit = true;
+                score += 300;
+                scoreDisplay.innerText = "SCORE: " + String(score).padStart(6, '0');
+                printLog(`🎯 [HIT] 成功擊中音符 #${target.id}！與音樂完美對齊！`);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (['z','Z','x','X'].includes(e.key)) triggerHit();
+        });
+        canvas.addEventListener('mousedown', () => {
+            if (isPlayingMode) {
+                triggerHit();
+            } else {
+                selectedObj = hitObjects.find(obj => {
+                    return Math.sqrt((obj.x - mouseX)**2 + (obj.y - mouseY)**2) <= CIRCLE_RADIUS;
+                });
+            }
+        });
+        canvas.addEventListener('mouseup', () => { selectedObj = null; });
+
+        // --- 🔄 播放模式切換與音訊實時同步控制 ---
+        const modeBtn = document.getElementById('btnToggleMode');
+        modeBtn.addEventListener('click', () => {
+            if (!isPlayingMode) {
+                // 啟動實時音訊播放與測試
+                isPlayingMode = true;
+                modeBtn.innerText = "🛑 停止音樂測試 (返回修改)";
+                modeBtn.style.backgroundColor = "#ff3333";
+                score = 0; scoreDisplay.innerText = "SCORE: 000000";
+                hitObjects.forEach(o => o.hit = false);
+                
+                printLog("🚀 音訊同步測試開始！將滑鼠移到音符上，跟著歌敲擊 Z / X 鍵！");
+                
+                // 播放音訊
+                audioSource = audioContext.createBufferSource();
+                audioSource.buffer = audioBuffer;
+                audioSource.connect(audioContext.destination);
+                
+                playbackStartTime = performance.now();
+                audioSource.start(0);
+                
+                updatePlayFrame();
+            } else {
+                stopAudioPlay();
+            }
+        });
+
+        function stopAudioPlay() {
+            isPlayingMode = false;
+            if (audioSource) {
+                try { audioSource.stop(); } catch(e){}
+            }
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            modeBtn.innerText = "🎮 進入 [同步音訊測試遊玩]";
+            modeBtn.style.backgroundColor = "#33aaff";
+            printLog("測試暫停。已返回【編輯模式】，你可以再次手動拖曳微調任何圓圈的位置。");
+            drawEditor();
+        }
+
+        // --- 💾 導出標準 .osu 格式 ---
+        document.getElementById('btnExport').addEventListener('click', () => {
+            if(hitObjects.length === 0) return;
+            printLog("正在生成相容於 osu!.exe 的正式譜面封包...");
+            
+            let header = `osu file format v14\n\n[General]\nAudioFilename: ${originalFileName}\nMode: 0\n\n[Metadata]\nTitle:AI Audio Onset Map\nArtist:AIGC Project\nCreator:AudioMapperAgent\nVersion:AI Generated\n\n[Difficulty]\nHPDrainRate:5\nCircleSize:4\nOverallDifficulty:7\nApproachRate:9\n\n[TimingPoints]\n0,500,4,2,1,60,1,0\n\n[HitObjects]\n`;
+            
+            hitObjects.forEach(obj => {
+                header += `${obj.x},${obj.y},${obj.time},${obj.combo?5:1},0,0:0:0:0:\n`;
+            });
+
+            const blob = new Blob([header], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = originalFileName.replace(/\.[^/.]+$/, "") + " (AI-Mapped).osu";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            printLog("💾 .osu 譜面下載完成！你可以把它與你的 MP3 音檔一起放進 osu! 遊戲資料夾中。");
+        });
+
+        // 初始繪製
+        drawEditor();
+    </script>
+</body>
+</html>

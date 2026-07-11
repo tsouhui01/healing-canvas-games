@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIGC 隨機多變性與動態密集度編譜沙盒</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #ff66aa; margin-bottom: 5px; }
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+            margin-top: 15px;
+        }
+        .sidebar {
+            flex: 1;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .game-area {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background: #050505;
+            border: 3px solid #ff66aa;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(255, 102, 170, 0.15);
+        }
+        button, input[type="file"], select {
+            background-color: #252525;
+            color: white;
+            border: 1px solid #444;
+            padding: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        input[type="file"] { background-color: #2a2a2a; }
+        button:hover { background-color: #333; border-color: #ff66aa; }
+        .btn-action { background-color: #ff66aa; border: none; color: white; font-size: 15px;}
+        .btn-action:hover { background-color: #ff3388; }
+        .btn-mode { background-color: #33aaff; border: none; color: white; }
+        .btn-mode:hover { background-color: #0088ee; }
+        .status-box {
+            background: #000;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 20px;
+            text-align: center;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        .log-console {
+            background: #000;
+            font-family: monospace;
+            padding: 10px;
+            height: 120px;
+            overflow-y: auto;
+            border-radius: 4px;
+            color: #00ff00;
+            font-size: 11px;
+        }
+        .control-group {
+            background: #252525;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        label { font-size: 13px; font-weight: bold; color: #ff66aa; display: block; margin-bottom: 5px; }
+        .slider-desc { font-size: 11px; color: #aaa; margin-top: 2px; display: block;}
+    </style>
+</head>
+<body>
+    <div style="position:fixed;right:16px;bottom:16px;z-index:9999;padding:10px 12px;border:1px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(0,0,0,.74);color:#fff;font-family:'Segoe UI','Noto Sans TC',sans-serif;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.35)">??????<a href="../../assets/audio/phigros-distorted-fate-sakuzyo-official.mp3" download style="color:#7de8ff;text-decoration:none;font-weight:700">?? MP3</a></div>
+
+    <h1>AIGC 隨機多變性與動態密集度編譜沙盒</h1>
+    <p style="color: #aaa; margin: 0;">打破固定公式！自由調整 AI 生成的物件密集度與隨機混亂度</p>
+
+    <div class="main-layout">
+        <div class="sidebar">
+            <div class="status-box" id="scoreDisplay">SCORE: 000000</div>
+            
+            <label><b>🎵 上傳音樂檔案 (.mp3/.wav)</b></label>
+            <input type="file" id="audioFile" accept="audio/*">
+
+            <div class="control-group">
+                <label for="densitySlider">🔥 AI 譜面密集度 (Density)</label>
+                <input type="range" id="densitySlider" min="0.5" max="3.0" step="0.1" value="1.5" style="width:100%;">
+                <span class="slider-desc" id="densityVal">當前倍率: 1.5x (數值越高，抓取的微小音符與切指越多)</span>
+            </div>
+
+            <div class="control-group">
+                <label for="randomSlider">🎲 空間隨機混亂度 (Randomness)</label>
+                <input type="range" id="randomSlider" min="0" max="100" step="5" value="40" style="width:100%;">
+                <span class="slider-desc" id="randomVal">當前混亂度: 40% (0% 為絕對幾何圖形，100% 為全隨機瘋狂亂跳)</span>
+            </div>
+
+            <div class="control-group">
+                <label for="flowStyle">🧭 基礎流向骨架 (Base Flow)</label>
+                <select id="flowStyle" style="width:100%;">
+                    <option value="jumps">交替大跳 (Jump Backbone)</option>
+                    <option value="stream">流水線性 (Stream Backbone)</option>
+                </select>
+            </div>
+
+            <button id="btnAnalyze" class="btn-action">⚡ 讓 AI 重新演算隨機譜面</button>
+            <button id="btnToggleMode" class="btn-mode" disabled>🎮 進入 [同步音訊測試遊玩]</button>
+            <button id="btnExport" style="background-color: #44aa44; border: none;" disabled>💾 匯出至 osu!.exe</button>
+
+            <div class="log-console" id="logConsole">> 系統就緒。請上傳 MP3 音檔...</div>
+        </div>
+
+        <div class="game-area">
+            <canvas id="gameCanvas" width="768" height="576"></canvas>
+            <div style="margin-top: 10px; color: #888; font-size: 13px;" id="timeDisplay">
+                音樂進度: 00:00 / 00:00 | 每次點擊生成，AI 都會算出完全不同的座標！
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const logConsole = document.getElementById('logConsole');
+        const timeDisplay = document.getElementById('timeDisplay');
+        
+        const SCALE = 1.5;
+        const CIRCLE_RADIUS = 24; 
+        
+        let audioContext = null;
+        let audioBuffer = null;
+        let audioSource = null;
+        let originalFileName = "phigros-distorted-fate-sakuzyo-official.mp3";
+        
+        let hitObjects = [];
+        let isPlayingMode = false;
+        let selectedObj = null;
+        let score = 0;
+        
+        let playbackStartTime = 0;
+        let animationFrameId = null;
+        let currentMsTime = 0;
+
+        function printLog(msg) {
+            logConsole.innerHTML += `<br>> ${msg}`;
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        // 即時顯示拉條數值
+        document.getElementById('densitySlider').addEventListener('input', (e) => {
+            document.getElementById('densityVal').innerText = `當前倍率: ${e.target.value}x`;
+        });
+        document.getElementById('randomSlider').addEventListener('input', (e) => {
+            document.getElementById('randomVal').innerText = `當前混亂度: ${e.target.value}%`;
+        });
+
+        document.getElementById('audioFile').addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                originalFileName = e.target.files[0].name;
+                printLog(`已載入音訊：${originalFileName}。調整參數後請點擊下方橘色按鈕生成。`);
+                document.getElementById('btnToggleMode').disabled = true;
+                document.getElementById('btnExport').disabled = true;
+                hitObjects = [];
+                drawEditor();
+            }
+        });
+
+        // --- 🤖 AI 聽音辨識與隨機化控制核心 ---
+        document.getElementById('btnAnalyze').addEventListener('click', async () => {
+            const fileInput = document.getElementById('audioFile');
+            if (fileInput.files.length === 0) {
+                alert("請先選擇一個音訊檔案！");
+                return;
+            }
+            
+            if (!audioBuffer) {
+                printLog("🤖 首次讀取，正在解碼音訊中...");
+                const file = fileInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            }
+            
+            analyzeAndGenerateMap();
+        });
+
+        function analyzeAndGenerateMap() {
+            printLog("[AI Processing] 開始根據最新參數重新進行譜面演算...");
+            
+            const rawData = audioBuffer.getChannelData(0);
+            const sampleRate = audioBuffer.sampleRate;
+            
+            const windowSize = Math.floor(sampleRate * 0.02);
+            const stepSize = Math.floor(sampleRate * 0.01); 
+            
+            hitObjects = [];
+            score = 0;
+            scoreDisplay.innerText = "SCORE: 000000";
+
+            let energies = [];
+            for (let i = 0; i < rawData.length - windowSize; i += stepSize) {
+                let sum = 0;
+                for (let j = 0; j < windowSize; j++) sum += rawData[i + j] * rawData[i + j];
+                let rms = Math.sqrt(sum / windowSize);
+                energies.push({ time: Math.floor((i / sampleRate) * 1000), val: rms });
+            }
+
+            // 讀取 UI 控制參數
+            const densityMultiplier = parseFloat(document.getElementById('densitySlider').value);
+            const randomnessPercent = parseFloat(document.getElementById('randomSlider').value) / 100;
+            const style = document.getElementById('flowStyle').value;
+
+            // 密集度控制：密集度越高，音符之間允許的最短間隔（ms）就越短，且偵測閾值越靈敏
+            const minNoteInterval = Math.max(100, 350 / densityMultiplier); 
+            const energyThreshold = Math.max(0.03, 0.09 / densityMultiplier); 
+
+            let angle = Math.random() * Math.PI * 2; // 隨機初始角度
+            let lastX = 256; let lastY = 192;
+            let lastNoteTime = 0;
+
+            for (let i = 15; i < energies.length - 15; i++) {
+                let currentEnergy = energies[i].val;
+                let localSum = 0;
+                for (let j = i - 15; j <= i + 15; j++) localSum += energies[j].val;
+                let localAverage = localSum / 31;
+
+                // 判斷是否為節奏點
+                if (currentEnergy > localAverage * 1.3 && currentEnergy > energyThreshold) {
+                    let targetTime = energies[i].time;
+                    
+                    if (targetTime - lastNoteTime > minNoteInterval) {
+                        let x = 256, y = 192;
+                        let idx = hitObjects.length;
+
+                        // 1. 計算基礎幾何骨架座標 (Base Backbone)
+                        let baseX = 256, baseY = 192;
+                        if (style === 'jumps') {
+                            angle += (Math.PI * 3.1) / 5;
+                            baseX = 256 + 135 * Math.cos(angle);
+                            baseY = 192 + 135 * Math.sin(angle);
+                        } else {
+                            angle += 0.5;
+                            lastX += 40 * Math.cos(angle);
+                            lastY += 40 * Math.sin(angle);
+                            if(lastX < 60 || lastX > 450) lastX = 256;
+                            if(lastY < 60 || lastY > 320) lastY = 192;
+                            baseX = lastX; baseY = lastY;
+                        }
+
+                        // 2. 注入隨機擾動演算法 (Random Perturbation)
+                        // 完全隨機的目標位置
+                        let randX = 40 + Math.random() * 432;
+                        let randY = 40 + Math.random() * 304;
+
+                        // 根據人類設定的百分比進行線性內插 (Lerp)，混合幾何與隨機
+                        x = baseX * (1 - randomnessPercent) + randX * randomnessPercent;
+                        y = baseY * (1 - randomnessPercent) + randY * randomnessPercent;
+
+                        // 安全邊界修正
+                        x = Math.max(40, Math.min(472, x));
+                        y = Math.max(40, Math.min(344, y));
+
+                        hitObjects.push({
+                            id: idx + 1,
+                            x: Math.round(x),
+                            y: Math.round(y),
+                            time: targetTime,
+                            hit: false,
+                            combo: (idx % 4 === 0)
+                        });
+
+                        lastNoteTime = targetTime;
+                    }
+                }
+            }
+
+            printLog(`🎲 [隨機生成完畢] 密集度: ${densityMultiplier}x | 隨機度: ${(randomnessPercent*100)}% | 共生成 ${hitObjects.length} 個音符。`);
+            document.getElementById('btnToggleMode').disabled = false;
+            document.getElementById('btnExport').disabled = false;
+            drawEditor();
+        }
+
+        // --- 🎨 繪製與遊玩邏輯 (與先前系統保持一致，確保穩定) ---
+        function drawEditor() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(256*SCALE, 0); ctx.lineTo(256*SCALE, canvas.height);
+            ctx.moveTo(0, 192*SCALE); ctx.lineTo(canvas.width, 192*SCALE);
+            ctx.stroke();
+
+            if (hitObjects.length > 1) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.moveTo(hitObjects[0].x * SCALE, hitObjects[0].y * SCALE);
+                for(let i=1; i<hitObjects.length; i++) ctx.lineTo(hitObjects[i].x * SCALE, hitObjects[i].y * SCALE);
+                ctx.stroke();
+            }
+
+            hitObjects.forEach(obj => {
+                const cx = obj.x * SCALE; const cy = obj.y * SCALE;
+                const r = CIRCLE_RADIUS * SCALE;
+                ctx.fillStyle = obj.combo ? '#55ccff' : '#ff66aa';
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(obj.id, cx, cy);
+            });
+            updateTimeDisplay(0);
+        }
+
+        function updatePlayFrame() {
+            let elapsedSec = (performance.now() - playbackStartTime) / 1000;
+            currentMsTime = Math.floor(elapsedSec * 1000);
+            updateTimeDisplay(elapsedSec);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const approachTimeWindow = 500; // 高密集度下，縮短前置顯示時間(AR提升)讓讀譜更清晰
+
+            hitObjects.forEach(obj => {
+                if (obj.hit || currentMsTime < obj.time - approachTimeWindow || currentMsTime > obj.time + 120) return;
+                const cx = obj.x * SCALE; const cy = obj.y * SCALE; const r = CIRCLE_RADIUS * SCALE;
+                let timeLeft = obj.time - currentMsTime;
+                if (timeLeft > 0) {
+                    let ratio = 1 + (timeLeft / approachTimeWindow) * 1.8;
+                    ctx.strokeStyle = 'rgba(255, 102, 170, 0.5)'; ctx.lineWidth = 1.5;
+                    ctx.beginPath(); ctx.arc(cx, cy, r * ratio, 0, Math.PI*2); ctx.stroke();
+                }
+                ctx.fillStyle = obj.combo ? '#55ccff' : '#ff66aa';
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.stroke();
+            });
+
+            if (isPlayingMode) {
+                if (elapsedSec >= audioBuffer.duration) stopAudioPlay();
+                else animationFrameId = requestAnimationFrame(updatePlayFrame);
+            }
+        }
+
+        function updateTimeDisplay(currentSec) {
+            let totalSec = audioBuffer ? audioBuffer.duration : 0;
+            let format = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, '0');
+            timeDisplay.innerText = `音樂進度: ${format(currentSec)} / ${format(totalSec)}`;
+        }
+
+        // 擊打判定
+        let mouseX = 256; let mouseY = 192;
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) / SCALE; mouseY = (e.clientY - rect.top) / SCALE;
+            if (!isPlayingMode && selectedObj) {
+                selectedObj.x = Math.round(Math.max(30, Math.min(482, mouseX)));
+                selectedObj.y = Math.round(Math.max(30, Math.min(354, mouseY)));
+                drawEditor();
+            }
+        });
+
+        function triggerHit() {
+            if (!isPlayingMode) return;
+            let target = hitObjects.find(obj => {
+                if (obj.hit) return false;
+                let distance = Math.sqrt((obj.x - mouseX) ** 2 + (obj.y - mouseY) ** 2);
+                let timeOffset = Math.abs(currentMsTime - obj.time);
+                return distance <= CIRCLE_RADIUS && timeOffset <= 100;
+            });
+            if (target) {
+                target.hit = true; score += 300;
+                scoreDisplay.innerText = "SCORE: " + String(score).padStart(6, '0');
+            }
+        }
+
+        window.addEventListener('keydown', (e) => { if (['z','Z','x','X'].includes(e.key)) triggerHit(); });
+        canvas.addEventListener('mousedown', () => {
+            if (isPlayingMode) triggerHit();
+            else selectedObj = hitObjects.find(obj => Math.sqrt((obj.x - mouseX)**2 + (obj.y - mouseY)**2) <= CIRCLE_RADIUS);
+        });
+        canvas.addEventListener('mouseup', () => { selectedObj = null; });
+
+        // 模式切換
+        const modeBtn = document.getElementById('btnToggleMode');
+        modeBtn.addEventListener('click', () => {
+            if (!isPlayingMode) {
+                isPlayingMode = true; modeBtn.innerText = "🛑 停止音樂測試"; modeBtn.style.backgroundColor = "#ff3333";
+                score = 0; scoreDisplay.innerText = "SCORE: 000000"; hitObjects.forEach(o => o.hit = false);
+                audioSource = audioContext.createBufferSource(); audioSource.buffer = audioBuffer; audioSource.connect(audioContext.destination);
+                playbackStartTime = performance.now(); audioSource.start(0);
+                updatePlayFrame();
+            } else {
+                stopAudioPlay();
+            }
+        });
+
+        function stopAudioPlay() {
+            isPlayingMode = false; if (audioSource) { try { audioSource.stop(); } catch(e){} }
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            modeBtn.innerText = "🎮 進入 [同步音訊測試遊玩]"; modeBtn.style.backgroundColor = "#33aaff";
+            drawEditor();
+        }
+
+        document.getElementById('btnExport').addEventListener('click', () => {
+            if(hitObjects.length === 0) return;
+            let header = `osu file format v14\n\n[General]\nAudioFilename: ${originalFileName}\nMode: 0\n\n[Metadata]\nTitle:AI Random Dynamic Map\nArtist:AIGC\nCreator:AutoMapperAgent\nVersion:Randomized\n\n[Difficulty]\nHPDrainRate:6\nCircleSize:4\nOverallDifficulty:8\nApproachRate:9.3\n\n[TimingPoints]\n0,500,4,2,1,60,1,0\n\n[HitObjects]\n`;
+            hitObjects.forEach(obj => { header += `${obj.x},${obj.y},${obj.time},${obj.combo?5:1},0,0:0:0:0:\n`; });
+            const blob = new Blob([header], { type: 'text/plain' }); const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = originalFileName.replace(/\.[^/.]+$/, "") + " (AI-Random).osu";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        });
+
+        drawEditor();
+    </script>
+</body>
+</html>

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIGC Auto-Mapping Agent 互動工作台</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #ff66aa; margin-bottom: 10px; }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+        .control-panel {
+            flex: 1;
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .editor-container {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background: #111111;
+            border: 2px solid #ff66aa;
+            border-radius: 4px;
+            cursor: crosshair;
+            box-shadow: 0 4px 10px rgba(255, 102, 170, 0.2);
+        }
+        button {
+            background-color: #ff66aa;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: 0.2s;
+        }
+        button:hover { background-color: #ff3388; }
+        .log-box {
+            background: #000;
+            font-family: monospace;
+            padding: 10px;
+            height: 150px;
+            overflow-y: auto;
+            border-radius: 4px;
+            margin-top: 15px;
+            color: #00ff00;
+            font-size: 12px;
+        }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        select, input[type="range"] { width: 100%; margin-top: 5px; }
+        .instructions { font-size: 13px; color: #aaa; margin-top: 10px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div style="position:fixed;right:16px;bottom:16px;z-index:9999;padding:10px 12px;border:1px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(0,0,0,.74);color:#fff;font-family:'Segoe UI','Noto Sans TC',sans-serif;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.35)">??????<a href="../../assets/audio/phigros-distorted-fate-sakuzyo-official.mp3" download style="color:#7de8ff;text-decoration:none;font-weight:700">?? MP3</a></div>
+
+    <h1>AIGC Auto-Mapping Agent 互動工作台</h1>
+    <p>AI 自動生成幾何流向，人類進行即時拖曳與修正（Human-in-the-Loop）</p>
+
+    <div class="container">
+        <div class="control-panel">
+            <h3>Agent 決策參數設定</h3>
+            
+            <label for="flowStyle">AI 流向風格 (Flow Style):</label>
+            <select id="flowStyle">
+                <option value="circular">圓弧流 (Circular Flow)</option>
+                <option value="star">跳躍星形流 (Star Jump Flow)</option>
+                <option value="stream">密集連打流 (Stream Flow)</option>
+            </select>
+
+            <label for="spacing">間距倍率 (Spacing Multiplier):</label>
+            <input type="range" id="spacing" min="0.5" max="2.5" step="0.1" value="1.2">
+
+            <button id="btnGenerate">🤖 AI Agent 自動編譜</button>
+            <button id="btnExport" style="background-color: #44aa44;">💾 匯出 .osu 譜面檔</button>
+
+            <div class="instructions">
+                <strong>💡 人機互動操作說明：</strong><br>
+                1. 點擊「AI Agent 自動編譜」生成音符。<br>
+                2. <b>滑鼠左鍵拖曳</b>畫布上的任一音符，即可人工修正 AI 的擺放位置。<br>
+                3. 點擊「匯出 .osu 譜面檔」可直接將人類與 AI 共同創作的成果帶入 osu!.exe 遊玩！
+            </div>
+
+            <div class="log-box" id="logBox">> 系統就緒。等待 Agent 指令...</div>
+        </div>
+
+        <div class="editor-container">
+            <canvas id="editorCanvas" width="768" height="576"></canvas>
+            <p style="color: #aaa; font-size: 14px; margin-top: 5px;">編輯器畫布：512 × 384 (OsuPixels scaled x1.5)</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const logBox = document.getElementById('logBox');
+        
+        // 放大比例
+        const SCALE = 1.5;
+        
+        // 譜面資料庫（儲存音符物件）
+        let hitObjects = [];
+        let selectedObject = null;
+
+        function log(message) {
+            logBox.innerHTML += `<br>> ${message}`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // --- 🤖 AI Agent 核心演算法 ---
+        document.getElementById('btnGenerate').addEventListener('click', () => {
+            log("AI Agent 啟動分析中...");
+            hitObjects = []; // 清空
+
+            const style = document.getElementById('flowStyle').value;
+            const spacingMult = parseFloat(document.getElementById('spacing').value);
+            
+            // 模擬分析了 24 個音訊節奏點
+            const totalBeats = 24; 
+            let angle = 0;
+            let lastX = 256;
+            let lastY = 192;
+
+            log(`[Chart Agent] 正在使用 [${style}] 風格編排 ${totalBeats} 個物件...`);
+
+            for (let i = 0; i < totalBeats; i++) {
+                let x, y;
+                let time = 1000 + i * 500; // 每 500ms 一拍
+
+                if (style === 'circular') {
+                    // 圓弧流：基於正弦餘弦的圓周運動
+                    angle += 0.5;
+                    let radius = 100 * spacingMult;
+                    x = 256 + radius * Math.cos(angle);
+                    y = 192 + radius * Math.sin(angle);
+                } else if (style === 'star') {
+                    // 星形大跳：在對角線極端點來回跳躍
+                    angle += (Math.PI * 4) / 5; // 五角星角度
+                    let radius = 140 * spacingMult;
+                    x = 256 + radius * Math.cos(angle);
+                    y = 192 + radius * Math.sin(angle);
+                } else {
+                    // 密集連打流：物件距離極近，呈微幅波浪狀
+                    lastX += (30 * spacingMult) * (i % 2 === 0 ? 1 : 0.5);
+                    lastY += Math.sin(i) * 20;
+                    // 超出邊界往回彈
+                    if(lastX > 450) lastX = 50;
+                    x = lastX;
+                    y = lastY;
+                }
+
+                // 邊界安全檢查
+                x = Math.max(40, Math.min(472, x));
+                y = Math.max(40, Math.min(344, y));
+
+                hitObjects.push({
+                    id: i + 1,
+                    x: Math.round(x),
+                    y: Math.round(y),
+                    time: time,
+                    type: (i % 4 === 0) ? 5 : 1 // 4拍一個 New Combo
+                });
+            }
+
+            log(`[QA Agent] 譜面生成完畢！已對齊網格。`);
+            draw();
+        });
+
+        // --- 🎨 畫布渲染邏輯 ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 畫出 osu! 中心線（輔助網格）
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(256 * SCALE, 0); ctx.lineTo(256 * SCALE, canvas.height);
+            ctx.moveTo(0, 192 * SCALE); ctx.lineTo(canvas.width, 192 * SCALE);
+            ctx.stroke();
+
+            // 繪製音符之間的流向連線 (Flow Lines)
+            if (hitObjects.length > 1) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(hitObjects[0].x * SCALE, hitObjects[0].y * SCALE);
+                for (let i = 1; i < hitObjects.length; i++) {
+                    ctx.lineTo(hitObjects[i].x * SCALE, hitObjects[i].y * SCALE);
+                }
+                ctx.stroke();
+            }
+
+            // 繪製音符 HitCircles
+            hitObjects.forEach((obj, index) => {
+                const canvasX = obj.x * SCALE;
+                const canvasY = obj.y * SCALE;
+                const radius = 24 * SCALE; // 模擬 CS4 的大小
+
+                // 外圈 (Approach Circle, 模擬即將縮小)
+                ctx.strokeStyle = '#ff66aa';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(canvasX, canvasY, radius * 1.5, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 本體圓圈
+                ctx.fillStyle = obj.type === 5 ? '#55ccff' : '#ff66aa';
+                ctx.beginPath();
+                ctx.arc(canvasX, canvasY, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // 顯示音符編號
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${14 * SCALE}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                // 如果是新 Combo 重新計數（簡化邏輯直接顯示 ID）
+                ctx.fillText(obj.id, canvasX, canvasY);
+            });
+        }
+
+        // --- 🖱️ 人類互動拖曳邏輯 (Human-in-the-Loop) ---
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            // 將點擊的網格座標還原回 512x384 基準面
+            const mouseX = (e.clientX - rect.left) / SCALE;
+            const mouseY = (e.clientY - rect.top) / SCALE;
+
+            // 偵測是否點中某個音符 (半徑 24)
+            selectedObject = hitObjects.find(obj => {
+                const dist = Math.sqrt((obj.x - mouseX) ** 2 + (obj.y - mouseY) ** 2);
+                return dist < 24;
+            });
+
+            if (selectedObject) {
+                log(`[User] 選取了音符 #${selectedObject.id}，開始人工修正位置。`);
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!selectedObject) return;
+            const rect = canvas.getBoundingClientRect();
+            let mouseX = (e.clientX - rect.left) / SCALE;
+            let mouseY = (e.clientY - rect.top) / SCALE;
+
+            // 限制邊界
+            selectedObject.x = Math.round(Math.max(20, Math.min(492, mouseX)));
+            selectedObject.y = Math.round(Math.max(20, Math.min(364, mouseY)));
+
+            draw(); // 即時重新渲染
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (selectedObject) {
+                log(`[User] 修正完畢。音符 #${selectedObject.id} 新座標為 (${selectedObject.x}, ${selectedObject.y})。數據已儲存。`);
+                selectedObject = null;
+            }
+        });
+
+        // --- 💾 匯出 .osu 檔案邏輯 ---
+        document.getElementById('btnExport').addEventListener('click', () => {
+            if (hitObjects.length === 0) {
+                alert("請先讓 AI 生成譜面再進行匯出！");
+                return;
+            }
+
+            log("正在打包人類與 AI 協同創作的譜面數據...");
+            
+            let header = `osu file format v14\n\n[General]\nAudioFilename: phigros-distorted-fate-sakuzyo-official.mp3\nMode: 0\n\n[Metadata]\nTitle:Web AI Hybrid Map\nArtist:AI Agent x Human\nCreator:AutoMapperAgent\nVersion:Human-in-the-Loop Expert\n\n[Difficulty]\nHPDrainRate:5\nCircleSize:4\nOverallDifficulty:7\nApproachRate:9\n\n[TimingPoints]\n0,400,4,2,1,60,1,0\n\n[HitObjects]\n`;
+            
+            hitObjects.forEach(obj => {
+                header += `${obj.x},${obj.y},${obj.time},${obj.type},0,0:0:0:0:\n`;
+            });
+
+            // 透過瀏覽器下載文字檔
+            const blob = new Blob([header], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "AI_Agent_x_Human - Web_Hybrid_Map (Auto-Mapped).osu";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            log("💾 檔案已匯出！請依照先前步驟與 phigros-distorted-fate-sakuzyo-official.mp3 一同放入 Songs 資料夾中讓 osu!.exe 讀取。");
+        });
+
+        // 初始畫布引導
+        ctx.fillStyle = '#444444';
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('請點擊左側「🤖 AI Agent 自動編譜」開始互動', canvas.width/2, canvas.height/2);
+    </script>
+</body>
+</html>

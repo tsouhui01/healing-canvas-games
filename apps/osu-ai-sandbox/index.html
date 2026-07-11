@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIGC 譜面生成與實時測試遊玩沙盒</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #ff66aa; margin-bottom: 5px; }
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+            margin-top: 15px;
+        }
+        .sidebar {
+            flex: 1;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .game-area {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        canvas {
+            background: #050505;
+            border: 3px solid #ff66aa;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(255, 102, 170, 0.15);
+        }
+        button {
+            background-color: #ff66aa;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:hover { background-color: #ff3388; }
+        .btn-mode { background-color: #33aaff; }
+        .btn-mode:hover { background-color: #0088ee; }
+        .status-box {
+            background: #000;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 20px;
+            text-align: center;
+            font-weight: bold;
+            color: #ffcc00;
+            border: 1px solid #333;
+        }
+        .log-console {
+            background: #000;
+            font-family: monospace;
+            padding: 10px;
+            height: 120px;
+            overflow-y: auto;
+            border-radius: 4px;
+            color: #00ff00;
+            font-size: 12px;
+        }
+        .info-card {
+            font-size: 13px;
+            color: #bbb;
+            background: #252525;
+            padding: 12px;
+            border-radius: 4px;
+            line-height: 1.6;
+        }
+        .highlight { color: #ff66aa; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div style="position:fixed;right:16px;bottom:16px;z-index:9999;padding:10px 12px;border:1px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(0,0,0,.74);color:#fff;font-family:'Segoe UI','Noto Sans TC',sans-serif;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.35)">??????<a href="../../assets/audio/phigros-distorted-fate-sakuzyo-official.mp3" download style="color:#7de8ff;text-decoration:none;font-weight:700">?? MP3</a></div>
+
+    <h1>AIGC 譜面生成與實時測試遊玩沙盒</h1>
+    <p style="color: #aaa; margin: 0;">AI 自動排譜 ➔ 人類編輯修正 ➔ 網頁即時試玩測試</p>
+
+    <div class="main-layout">
+        <div class="sidebar">
+            <div class="status-box" id="scoreDisplay">SCORE: 000000</div>
+            
+            <label><b>🤖 AI 譜師生成風格:</b></label>
+            <select id="flowStyle" style="padding: 8px; background: #333; color: white; border: none; border-radius: 4px;">
+                <option value="jumps">交替大跳流 (Jump Style)</option>
+                <option value="stream">密集切指流 (Stream Style)</option>
+                <option value="triangle">幾何三角流 (Triangle Style)</option>
+            </select>
+
+            <button id="btnGenerate">🎲 讓 AI 生成全新譜面</button>
+            <button id="btnToggleMode" class="btn-mode">🎮 進入 [測試遊玩模式]</button>
+            <button id="btnExport" style="background-color: #44aa44;">💾 匯出至 osu!.exe</button>
+
+            <div class="info-card">
+                <b>🛠️ 模式切換說明：</b><br>
+                1. <span class="highlight">【編輯模式】</span>：可用滑鼠<b>左鍵拖曳</b>音符，人工修改 AI 不合理的擺放位置。<br>
+                2. <span class="highlight">【測試遊玩模式】</span>：譜面會動態播放，當大外圈縮小到與內圈重合時，將滑鼠移到音符上，按下鍵盤 <span class="highlight">Z</span> 或 <span class="highlight">X</span> 鍵（或滑鼠左鍵）進行打擊測試！
+            </div>
+
+            <div class="log-console" id="logConsole">> 系統就緒。請先生成譜面。</div>
+        </div>
+
+        <div class="game-area">
+            <canvas id="gameCanvas" width="768" height="576"></canvas>
+            <div style="margin-top: 10px; color: #888; font-size: 13px;">
+                網頁模擬解析度: 512x384 (等比例放大1.5倍) | 遊玩熱鍵: 滑鼠瞄準 + 鍵盤 Z/X
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const logConsole = document.getElementById('logConsole');
+        
+        const SCALE = 1.5;
+        const CIRCLE_RADIUS = 24; // osu! 標準大小 (模擬 CS4)
+        
+        // 狀態變數
+        let hitObjects = [];
+        let isPlayingMode = false; 
+        let selectedObj = null;
+        let score = 0;
+        
+        // 播放時間軸控制
+        let gameStartTime = 0;
+        let animationFrameId = null;
+        let currentPlaybackTime = 0;
+
+        function printLog(msg) {
+            logConsole.innerHTML += `<br>> ${msg}`;
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        // --- 🤖 AI Agent 自動編譜演算法 ---
+        document.getElementById('btnGenerate').addEventListener('click', () => {
+            stopPlayTest();
+            hitObjects = [];
+            score = 0;
+            scoreDisplay.innerText = "SCORE: 000000";
+            
+            const style = document.getElementById('flowStyle').value;
+            printLog(`AI Agent 正在計算 [${style}] 風格譜面...`);
+            
+            const totalObjects = 32; 
+            const bpm = 140;
+            const beatDuration = (60 / bpm) * 1000; // 每拍毫秒數 (大約 428ms)
+            
+            let lastX = 256;
+            let lastY = 192;
+            let angle = 0;
+
+            for(let i = 0; i < totalObjects; i++) {
+                let x = 256, y = 192;
+                // 設定每個音符的觸發時間點（每拍一個音符）
+                let targetTime = 1500 + (i * beatDuration); 
+
+                if (style === 'jumps') {
+                    // 大跳流：在螢幕四個象限大幅度交叉跳躍
+                    angle += (Math.PI * 3) / 5;
+                    let radius = 130 + Math.sin(i) * 30;
+                    x = 256 + radius * Math.cos(angle);
+                    y = 192 + radius * Math.sin(angle);
+                } else if (style === 'stream') {
+                    // 切指連打流：時間間隔減半，音符呈緊密的流線型緊貼
+                    targetTime = 1500 + (i * (beatDuration / 2));
+                    lastX += 35 * Math.cos(i * 0.7);
+                    lastY += 35 * Math.sin(i * 0.7);
+                    if(lastX < 50 || lastX > 460) lastX = 256;
+                    if(lastY < 50 || lastY > 330) lastY = 192;
+                    x = lastX; y = lastY;
+                } else if (style === 'triangle') {
+                    // 三角流：每三個點構成一個等邊三角形結構
+                    let triStep = i % 3;
+                    angle = (triStep * (Math.PI * 2) / 3) + (Math.floor(i/3) * 0.5);
+                    let radius = 90;
+                    let centerX = 256 + Math.cos(Math.floor(i/3)) * 80;
+                    let centerY = 192 + Math.sin(Math.floor(i/3)) * 60;
+                    x = centerX + radius * Math.cos(angle);
+                    y = centerY + radius * Math.sin(angle);
+                }
+
+                // 邊界安全邊距限制
+                x = Math.max(40, Math.min(472, x));
+                y = Math.max(40, Math.min(344, y));
+
+                hitObjects.push({
+                    id: i + 1,
+                    x: Math.round(x),
+                    y: Math.round(y),
+                    time: targetTime,
+                    hit: false, // 是否已被玩家打擊成功
+                    combo: (i % 4 === 0)
+                });
+            }
+            
+            printLog(`🤖 AI 編譜完成！共生成 ${totalObjects} 個測試節點。進入【編輯模式】。`);
+            drawEditor();
+        });
+
+        // --- 🎨 渲染邏輯：編輯模式 ---
+        function drawEditor() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 畫出輔助中心十字線
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(256*SCALE, 0); ctx.lineTo(256*SCALE, canvas.height);
+            ctx.moveTo(0, 192*SCALE); ctx.lineTo(canvas.width, 192*SCALE);
+            ctx.stroke();
+
+            // 繪製流向連線 (Flow lines)
+            if(hitObjects.length > 1) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(hitObjects[0].x * SCALE, hitObjects[0].y * SCALE);
+                for(let i=1; i<hitObjects.length; i++) {
+                    ctx.lineTo(hitObjects[i].x * SCALE, hitObjects[i].y * SCALE);
+                }
+                ctx.stroke();
+            }
+
+            // 繪製靜態音符
+            hitObjects.forEach(obj => {
+                const cx = obj.x * SCALE;
+                const cy = obj.y * SCALE;
+                const r = CIRCLE_RADIUS * SCALE;
+
+                ctx.fillStyle = obj.combo ? '#55ccff' : '#ff66aa';
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(obj.id, cx, cy);
+            });
+        }
+
+        // --- 🎮 渲染與動態更新邏輯：測試遊玩模式 ---
+        function updatePlayFrame() {
+            currentPlaybackTime = performance.now() - gameStartTime;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 畫面只顯示當前時間點前後的音符（AR時間窗：顯示前 800ms 的音符）
+            const approachTimeWindow = 800; 
+
+            hitObjects.forEach(obj => {
+                // 如果音符已經打過，或者還沒到顯示時間，或者已經漏吹(Miss)超過200ms則不畫
+                if (obj.hit) return;
+                if (currentPlaybackTime < obj.time - approachTimeWindow) return;
+                if (currentPlaybackTime > obj.time + 200) return; // 過期消失
+
+                const cx = obj.x * SCALE;
+                const cy = obj.y * SCALE;
+                const r = CIRCLE_RADIUS * SCALE;
+
+                // 核心：計算縮小圈 (Approach Circle) 比例
+                let timeLeft = obj.time - currentPlaybackTime;
+                if (timeLeft > 0) {
+                    let ratio = 1 + (timeLeft / approachTimeWindow) * 2; // 從3倍大小縮小到1倍
+                    ctx.strokeStyle = 'rgba(255, 102, 170, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r * ratio, 0, Math.PI*2);
+                    ctx.stroke();
+                }
+
+                // 本體 Hit Circle
+                ctx.fillStyle = obj.combo ? '#55ccff' : '#ff66aa';
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '18px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(obj.id, cx, cy);
+            });
+
+            // 如果所有音符都播完且過期，自動結束測試
+            const lastObj = hitObjects[hitObjects.length - 1];
+            if(lastObj && currentPlaybackTime > lastObj.time + 500) {
+                printLog("🎵 測試遊玩播放結束！");
+                stopPlayTest();
+                return;
+            }
+
+            if (isPlayingMode) {
+                animationFrameId = requestAnimationFrame(updatePlayFrame);
+            }
+        }
+
+        // --- 🎹 核心打擊判定 (Hit Decision) ---
+        let mouseX = 0, mouseY = 0;
+        // 追蹤滑鼠當前在畫布上的座標
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) / SCALE;
+            mouseY = (e.clientY - rect.top) / SCALE;
+
+            // 如果是編輯模式，兼顧拖曳物件功能
+            if (!isPlayingMode && selectedObj) {
+                selectedObj.x = Math.round(Math.max(30, Math.min(482, mouseX)));
+                selectedObj.y = Math.round(Math.max(30, Math.min(354, mouseY)));
+                drawEditor();
+            }
+        });
+
+        // 觸發打擊檢查（滑鼠點擊或 Z/X 按鍵）
+        function triggerHitCheck() {
+            if (!isPlayingMode) return;
+
+            // 尋找滑鼠範圍內、且時間最接近當前播放時間的未打擊音符
+            let hitTarget = hitObjects.find(obj => {
+                if (obj.hit) return false;
+                // 檢查滑鼠與音符中心的物理距離
+                let distance = Math.sqrt((obj.x - mouseX) ** 2 + (obj.y - mouseY) ** 2);
+                // 檢查時間判定窗（精確度：與目標打擊時間點相差正負 100 毫秒之內算成功）
+                let timeOffset = Math.abs(currentPlaybackTime - obj.time);
+                return distance <= CIRCLE_RADIUS && timeOffset <= 120;
+            });
+
+            if (hitTarget) {
+                hitTarget.hit = true;
+                score += 300;
+                scoreDisplay.innerText = "SCORE: " + String(score).padStart(6, '0');
+                printLog(`🎯 擊中音符 #${hitTarget.id}！完美(300分)`);
+            }
+        }
+
+        // 鍵盤事件監聽 (對齊 osu! 經典 Z/X 鍵)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'z' || e.key === 'z' || e.key === 'x' || e.key === 'X') {
+                triggerHitCheck();
+            }
+        });
+        canvas.addEventListener('mousedown', () => {
+            if (isPlayingMode) {
+                triggerHitCheck();
+            } else {
+                // 編輯模式：選取物件進行拖曳
+                selectedObj = hitObjects.find(obj => {
+                    let dist = Math.sqrt((obj.x - mouseX) ** 2 + (obj.y - mouseY) ** 2);
+                    return dist <= CIRCLE_RADIUS;
+                });
+                if(selectedObj) printLog(`[修改] 開始拖曳調整音符 #${selectedObj.id} 的空間位置`);
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if(!isPlayingMode && selectedObj) {
+                printLog(`[修改] 音符 #${selectedObj.id} 位置已手動修正為: (${selectedObj.x}, ${selectedObj.y})`);
+                selectedObj = null;
+            }
+        });
+
+        // --- 🔄 模式轉換控制 ---
+        const modeBtn = document.getElementById('btnToggleMode');
+        modeBtn.addEventListener('click', () => {
+            if (hitObjects.length === 0) {
+                alert("請先點擊上方按鈕生成 AI 譜面！");
+                return;
+            }
+
+            if (!isPlayingMode) {
+                // 啟動測試遊玩模式
+                isPlayingMode = true;
+                modeBtn.innerText = "🛑 停止測試 (返回編輯)";
+                modeBtn.style.backgroundColor = "#ff3333";
+                score = 0;
+                scoreDisplay.innerText = "SCORE: 000000";
+                // 重置所有音符狀態
+                hitObjects.forEach(o => o.hit = false);
+                
+                printLog("🚀 測試遊玩啟動！請將滑鼠對準音符並按 Z / X 鍵敲擊！");
+                gameStartTime = performance.now();
+                updatePlayFrame();
+            } else {
+                stopPlayTest();
+            }
+        });
+
+        function stopPlayTest() {
+            isPlayingMode = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            modeBtn.innerText = "🎮 進入 [測試遊玩模式]";
+            modeBtn.style.backgroundColor = "#33aaff";
+            printLog("已返回【編輯模式】。可再次手動調整物件。");
+            drawEditor();
+        }
+
+        // --- 💾 匯出設定 ---
+        document.getElementById('btnExport').addEventListener('click', () => {
+            if(hitObjects.length === 0) return;
+            let header = `osu file format v14\n\n[General]\nAudioFilename: phigros-distorted-fate-sakuzyo-official.mp3\nMode: 0\n\n[Metadata]\nTitle:AI Sandbox Interactive Map\nArtist:AI Agent\nCreator:AutoMapper\nVersion:Tested Expert\n\n[Difficulty]\nHPDrainRate:5\nCircleSize:4\nOverallDifficulty:7\nApproachRate:9\n\n[TimingPoints]\n0,428.57,4,2,1,60,1,0\n\n[HitObjects]\n`;
+            hitObjects.forEach(obj => {
+                header += `${obj.x},${obj.y},${Math.round(obj.time)},${obj.combo?5:1},0,0:0:0:0:\n`;
+            });
+            const blob = new Blob([header], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = "AI_Sandbox_Output.osu";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        });
+
+        // 初始導引文字
+        ctx.fillStyle = '#666'; ctx.font = '18px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('請點擊左側「讓 AI 生成全新譜面」開始', canvas.width/2, canvas.height/2);
+    </script>
+</body>
+</html>

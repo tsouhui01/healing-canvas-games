@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>歐帕小精靈的期末大作戰 - All-Pass Sprite Agent</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background-color: #12141d;
+            color: #e2e8f0;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
+            color: #00e5ff;
+            text-shadow: 0 0 10px rgba(0,229,255,0.2);
+        }
+        .subtitle {
+            font-size: 13px;
+            margin-bottom: 15px;
+            color: #94a3b8;
+        }
+        #gameContainer {
+            position: relative;
+            background: #1e293b;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            border: 2px solid #334155;
+            padding: 12px;
+        }
+        canvas {
+            display: block;
+            border-radius: 12px;
+            background: #0f172a;
+        }
+        .instructions {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .highlight {
+            color: #00e5ff;
+            font-weight: bold;
+        }
+        .ai-status {
+            color: #10b981;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>歐帕小精靈的期末大作戰</h1>
+    <div class="subtitle">期末考倒數！火速淨化地圖上的「紅牌學業焦慮危機」</div>
+    
+    <div id="gameContainer">
+        <canvas id="spriteCanvas" width="600" height="480"></canvas>
+    </div>
+
+    <div class="instructions">
+        玩家手動：<span class="highlight">W, A, S, D / 方向鍵</span> 移動 | <span class="highlight">空白鍵 (Space)</span> 發射歐帕祝福淨化鄰近格子<br>
+        智能切換：按 <span class="highlight">Enter 鍵</span> 切換開關 <span class="ai-status">[AI Agent 自主路徑規劃尋路模式]</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('spriteCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- 網格地圖設定 ---
+        const tileSize = 40;
+        const cols = canvas.width / tileSize; // 15
+        const rows = canvas.height / tileSize; // 12
+
+        // --- 遊戲核心數據 ---
+        let score = 0;
+        let timeLeft = 60; // 60秒倒數
+        let lastTime = Date.now();
+        let isAiMode = true; // 預設啟用自動尋路 Agent
+        let gameOver = false;
+
+        // 玩家精靈物件
+        const player = {
+            gridX: 2,
+            gridY: 2,
+            color: '#00e5ff',
+            shootCooldown: 0
+        };
+
+        // 危機格子陣列 (焦慮區域)
+        let crisisList = [];
+        // 祝福光束與微粒特效
+        let beams = [];
+        let particles = [];
+
+        // 預先生成障礙物 (圖書館書架/課桌椅)
+        const obstacles = [
+            {x: 4, y: 3}, {x: 4, y: 4}, {x: 4, y: 5},
+            {x: 10, y: 6}, {x: 10, y: 7}, {x: 10, y: 8},
+            {x: 7, y: 2}, {x: 8, y: 2},
+            {x: 6, y: 10}, {x: 7, y: 10}
+        ];
+
+        function isObstacle(x, y) {
+            return obstacles.some(obs => obs.x === x && obs.y === y);
+        }
+
+        // --- 生成學業危機任務 ---
+        let spawnTimer = 0;
+        function spawnCrisis() {
+            spawnTimer++;
+            if (spawnTimer % 80 === 0 && crisisList.length < 8) {
+                let rx = Math.floor(Math.random() * cols);
+                let ry = Math.floor(Math.random() * rows);
+                
+                // 不能生在障礙物、不能生在玩家腳下、不能重複
+                if (!isObstacle(rx, ry) && !(player.gridX === rx && player.gridY === ry) && 
+                    !crisisList.some(c => c.x === rx && c.y === ry)) {
+                    crisisList.push({
+                        x: rx, y: ry,
+                        severity: 1, // 焦慮嚴重度
+                        timer: 0
+                    });
+                }
+            }
+        }
+
+        // --- AI Agent BFS 廣度優先自動尋路與決策演算法 ---
+        let aiMoveDelay = 0; 
+        function runAIAgent() {
+            aiMoveDelay++;
+            if (aiMoveDelay % 10 !== 0) return; // 控制自動移動速度，防晃眼
+
+            if (crisisList.length === 0) return;
+
+            // 1. 尋找距離目前最近的危機目標
+            let target = null;
+            let minDist = 999;
+            crisisList.forEach(c => {
+                let d = Math.abs(c.x - player.gridX) + Math.abs(c.y - player.gridY);
+                if (d < minDist) {
+                    minDist = d;
+                    target = c;
+                }
+            });
+
+            if (!target) return;
+
+            // 如果已經在目標旁邊，Agent 自動觸發發射祝福
+            if (minDist <= 1) {
+                executePurify();
+                return;
+            }
+
+            // 2. 實作圖形觀念的 BFS 尋路，避開書架(障礙物)找到前往目標的最佳第一步
+            let start = { x: player.gridX, y: player.gridY, path: [] };
+            let queue = [start];
+            let visited = Array.from({ length: cols }, () => Array(rows).fill(false));
+            visited[player.gridX][player.gridY] = true;
+            
+            let foundPath = null;
+            const dirs = [
+                {x: 0, y: -1}, {x: 0, y: 1}, {x: -1, y: 0}, {x: 1, y: 0}
+            ];
+
+            while (queue.length > 0) {
+                let curr = queue.shift();
+
+                // 判斷是否抵達目標鄰空格
+                if (Math.abs(curr.x - target.x) + Math.abs(curr.y - target.y) <= 1) {
+                    foundPath = curr.path;
+                    break;
+                }
+
+                for (let d of dirs) {
+                    let nx = curr.x + d.x;
+                    let ny = curr.y + d.y;
+
+                    if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
+                        if (!visited[nx][ny] && !isObstacle(nx, ny)) {
+                            visited[nx][ny] = true;
+                            let newPath = [...curr.path, { x: nx, y: ny }];
+                            queue.push({ x: nx, y: ny, path: newPath });
+                        }
+                    }
+                }
+            }
+
+            // 3. 根據規劃出的路徑前進一步
+            if (foundPath && foundPath.length > 0) {
+                player.gridX = foundPath[0].x;
+                player.gridY = foundPath[0].y;
+            }
+        }
+
+        // 淨化動作邏輯
+        function executePurify() {
+            const range = 1;
+            // 建立十字射擊視覺特效線條
+            beams.push({
+                x: player.gridX * tileSize + tileSize/2,
+                y: player.gridY * tileSize + tileSize/2,
+                alpha: 1
+            });
+
+            // 檢查玩家十字範圍 1 格內有沒有危機區
+            for (let i = crisisList.length - 1; i >= 0; i--) {
+                let c = crisisList[i];
+                let dx = Math.abs(c.x - player.gridX);
+                let dy = Math.abs(c.y - player.gridY);
+                
+                if ((dx <= range && dy === 0) || (dy <= range && dx === 0)) {
+                    // 成功引爆/消除危機
+                    createExplosion(c.x * tileSize + tileSize/2, c.y * tileSize + tileSize/2, '#00ffcc');
+                    score += 100;
+                    crisisList.splice(i, 1);
+                }
+            }
+        }
+
+        // 監聽按鍵
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Enter') {
+                if (gameOver) {
+                    resetGame();
+                } else {
+                    isAiMode = !isAiMode; // 切換 AI 狀態
+                }
+                return;
+            }
+
+            if (isAiMode || gameOver) return; // 自動模式下封鎖手動位移
+
+            let nextX = player.gridX;
+            let nextY = player.gridY;
+
+            if (e.code === 'KeyW' || e.key === 'ArrowUp') nextY--;
+            if (e.code === 'KeyS' || e.key === 'ArrowDown') nextY++;
+            if (e.code === 'KeyA' || e.key === 'ArrowLeft') nextX--;
+            if (e.code === 'KeyD' || e.key === 'ArrowRight') nextX++;
+
+            // 撞牆及障礙物阻擋判定
+            if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows) {
+                if (!isObstacle(nextX, nextY)) {
+                    player.gridX = nextX;
+                    player.gridY = nextY;
+                }
+            }
+
+            if (e.code === 'Space') {
+                executePurify();
+            }
+        });
+
+        function resetGame() {
+            score = 0;
+            timeLeft = 60;
+            gameOver = false;
+            crisisList = [];
+            beams = [];
+            particles = [];
+            player.gridX = 2;
+            player.gridY = 2;
+            lastTime = Date.now();
+        }
+
+        function createExplosion(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6,
+                    radius: Math.random()*3+1, alpha: 1, color: color
+                });
+            }
+        }
+
+        // --- 核心物理更新 ---
+        function update() {
+            if (gameOver) return;
+
+            // 時間倒數計算
+            let now = Date.now();
+            if (now - lastTime >= 1000) {
+                timeLeft--;
+                lastTime = now;
+                if (timeLeft <= 0) gameOver = true;
+            }
+
+            // 若在 AI 模式，執行智能尋路行為
+            if (isAiMode) {
+                runAIAgent();
+            }
+
+            // 生成新的學業危機
+            spawnCrisis();
+
+            // 危機區隨時間惡化計時
+            crisisList.forEach(c => {
+                c.timer++;
+                if (c.timer % 150 === 0) {
+                    c.severity = Math.min(3, c.severity + 0.5); // 越來越紅
+                }
+            });
+
+            // 更新光束特效
+            for(let i=beams.length-1; i>=0; i--) {
+                beams[i].alpha -= 0.1;
+                if (beams[i].alpha <= 0) beams.splice(i, 1);
+            }
+
+            // 更新粒子
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+        }
+
+        // --- 畫面渲染 ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 繪製校園課堂格線背景
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            for(let c=0; c<=cols; c++) {
+                ctx.beginPath(); ctx.moveTo(c*tileSize, 0); ctx.lineTo(c*tileSize, canvas.height); ctx.stroke();
+            }
+            for(let r=0; r<=rows; r++) {
+                ctx.beginPath(); ctx.moveTo(0, r*tileSize); ctx.lineTo(canvas.width, r*tileSize); ctx.stroke();
+            }
+
+            // 2. 繪製書架/課桌椅障礙物
+            obstacles.forEach(obs => {
+                ctx.fillStyle = '#475569'; // 深灰長方體書架
+                ctx.fillRect(obs.x * tileSize + 2, obs.y * tileSize + 2, tileSize - 4, tileSize - 4);
+                // 書架內線條裝飾
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(obs.x * tileSize + 6, obs.y * tileSize + 10, tileSize - 12, 6);
+                ctx.fillRect(obs.x * tileSize + 6, obs.y * tileSize + 24, tileSize - 12, 6);
+            });
+
+            // 3. 繪製學業危機區域 (紅色焦慮圈)
+            crisisList.forEach(c => {
+                ctx.save();
+                // 根據嚴重度改變半透明紅色深度
+                ctx.fillStyle = `rgba(239, 68, 68, ${0.2 * c.severity})`;
+                ctx.fillRect(c.x * tileSize, c.y * tileSize, tileSize, tileSize);
+                
+                // 中央畫一個代表焦慮學生的感嘆號或圓圈
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(c.x * tileSize + tileSize/2, c.y * tileSize + tileSize/2, 6 + Math.sin(c.timer*0.1)*2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 4. 繪製發射十字祝福波的特效
+            beams.forEach(b => {
+                ctx.save();
+                ctx.globalAlpha = b.alpha;
+                ctx.strokeStyle = '#00e5ff';
+                ctx.lineWidth = 4;
+                // 橫向與縱向射擊線
+                ctx.beginPath();
+                ctx.moveTo(b.x - tileSize*1.5, b.y); ctx.lineTo(b.x + tileSize*1.5, b.y);
+                ctx.moveTo(b.x, b.y - tileSize*1.5); ctx.lineTo(b.x, b.y + tileSize*1.5);
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // 5. 繪製歐帕小精靈 (Agent 主體)
+            ctx.save();
+            let px = player.gridX * tileSize + tileSize/2;
+            let py = player.gridY * tileSize + tileSize/2;
+            
+            // 精靈光暈
+            let shadowGrad = ctx.createRadialGradient(px, py, 2, px, py, 16);
+            shadowGrad.addColorStop(0, '#ffffff');
+            shadowGrad.addColorStop(0.5, player.color);
+            shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = shadowGrad;
+            ctx.beginPath(); ctx.arc(px, py, 16, 0, Math.PI*2); ctx.fill();
+
+            // 精靈核心菱形
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(px, py - 10);
+            ctx.lineTo(px - 8, py);
+            let index4;
+            ctx.lineTo(px, py + 10);
+            ctx.lineTo(px + 8, py);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // 6. 繪製粒子效果
+            particles.forEach(p => {
+                ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            });
+
+            // 7. 頂部狀態面板 UI
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.fillRect(0, 0, canvas.width, 40);
+            
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`✨ 歐帕積分: ${score}`, 15, 25);
+
+            ctx.textAlign = 'right';
+            ctx.fillText(`⏰ 距離期末考倒數: ${timeLeft} 秒`, canvas.width - 15, 25);
+
+            ctx.textAlign = 'center';
+            if (isAiMode) {
+                ctx.fillStyle = '#10b981';
+                ctx.fillText('● AI AGENT 正在執行圖形 BFS 尋路算法中', canvas.width / 2, 25);
+            } else {
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText('○ 手動模式 (鍵盤移動/空白鍵祝福)', canvas.width / 2, 25);
+            }
+
+            // 8. 遊戲結束 UI
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#00e5ff';
+                ctx.font = 'bold 36px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('學期任務結束！', canvas.width/2, canvas.height/2 - 20);
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '18px sans-serif';
+                ctx.fillText(`最終守護歐帕總分: ${score}`, canvas.width/2, canvas.height/2 + 20);
+                ctx.font = '14px sans-serif';
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText('按下 ENTER 鍵 重新開啟大作戰', canvas.width/2, canvas.height/2 + 60);
+            }
+        }
+
+        // 主迴圈
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>

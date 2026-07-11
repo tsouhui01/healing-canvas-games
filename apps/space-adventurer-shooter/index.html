@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太空探險者 - 2D 射擊遊戲</title>
+    <style>
+        /* 基礎科技感風格 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #050510;
+            color: #00ffcc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px #00ffcc;
+        }
+        /* 遊戲畫布與外框線條 */
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+            border: 2px solid #00ffcc;
+            border-radius: 4px;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+        /* 操作說明提示 */
+        .instructions {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #88a0c0;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .highlight {
+            color: #ff00ff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>SPACE INTERCEPTOR</h1>
+    
+    <div id="gameContainer">
+        <!-- 遊戲主畫面 -->
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <div class="instructions">
+        控制：<span class="highlight">W, A, S, D</span> 或 <span class="highlight">方向鍵</span> 移動 | 
+        攻擊：<span class="highlight">空白鍵 (Space)</span> 發射子彈<br>
+        狀態：按 <span class="highlight">Enter</span> 開始 / 重新開始遊戲
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- 遊戲狀態 ---
+        const STATE_START = 'START';
+        const STATE_PLAYING = 'PLAYING';
+        const STATE_GAMEOVER = 'GAMEOVER';
+        let gameState = STATE_START;
+
+        // --- 核心遊戲變數 ---
+        let score = 0;
+        let lives = 3;
+        let baseEnemySpeed = 2; // 敵人基礎速度
+        let enemySpawnTimer = 0;
+        let enemySpawnInterval = 60; // 每幾幀生成一隻敵人
+
+        // 按鍵監聽狀態
+        const keys = {
+            w: false, a: false, s: false, d: false,
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+            Space: false
+        };
+
+        // --- 遊戲物件定義 ---
+        
+        // 1. 玩家太空船
+        const player = {
+            x: 100,
+            y: 300,
+            width: 40,
+            height: 30,
+            speed: 5,
+            shootCooldown: 0,
+            maxCooldown: 12, // 控制射速
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // 繪製噴火特效
+                if (Math.random() > 0.3 && gameState === STATE_PLAYING) {
+                    ctx.fillStyle = '#ff3300';
+                    ctx.beginPath();
+                    ctx.moveTo(-15, -5);
+                    ctx.lineTo(-30 - Math.random() * 10, 0);
+                    ctx.lineTo(-15, 5);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.beginPath();
+                    ctx.moveTo(-15, -2);
+                    ctx.lineTo(-22 - Math.random() * 5, 0);
+                    ctx.lineTo(-15, 2);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                // 船身 (幾何科技風格三角形)
+                ctx.fillStyle = '#00ffcc';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00ffcc';
+                
+                ctx.beginPath();
+                ctx.moveTo(25, 0);       // 機頭
+                ctx.lineTo(-15, -15);    // 左翼
+                ctx.lineTo(-5, 0);       // 機尾內縮
+                ctx.lineTo(-15, 15);     // 右翼
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+        };
+
+        // 2. 陣列管理
+        let bullets = [];
+        let enemies = [];
+        let stars = [];
+        let particles = []; // 爆炸粒子效果
+
+        // 3. 背景星空初始化
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < 100; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2,
+                    speed: Math.random() * 2 + 0.5
+                });
+            }
+        }
+
+        // --- 輔助功能：產生爆炸粒子 ---
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 15; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    radius: Math.random() * 3 + 1,
+                    alpha: 1,
+                    decay: Math.random() * 0.03 + 0.01,
+                    color: color
+                });
+            }
+        }
+
+        // --- 遊戲重置 ---
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            baseEnemySpeed = 2;
+            bullets = [];
+            enemies = [];
+            particles = [];
+            player.x = 100;
+            player.y = 300;
+            enemySpawnTimer = 0;
+            gameState = STATE_PLAYING;
+        }
+
+        // --- 碰撞偵測 (AABB) ---
+        function checkCollision(rect1, rect2) {
+            return rect1.x - rect1.width/2 < rect2.x + rect2.width/2 &&
+                   rect1.x + rect1.width/2 > rect2.x - rect2.width/2 &&
+                   rect1.y - rect1.height/2 < rect2.y + rect2.height/2 &&
+                   rect1.y + rect1.height/2 > rect2.y - rect2.height/2;
+        }
+
+        // --- 監聽鍵盤事件 ---
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') keys.Space = true;
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+                keys[e.code.toLowerCase().replace('key', '')] = true;
+            }
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                keys[e.key] = true;
+            }
+            
+            // Enter 鍵轉換場景
+            if (e.code === 'Enter') {
+                if (gameState === STATE_START || gameState === STATE_GAMEOVER) {
+                    resetGame();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') keys.Space = false;
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+                keys[e.code.toLowerCase().replace('key', '')] = false;
+            }
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                keys[e.key] = false;
+            }
+        });
+
+        // --- 核心邏輯更新 ---
+        function update() {
+            // 1. 無論什麼狀態，背景的星星都在流動
+            stars.forEach(star => {
+                star.x -= star.speed;
+                if (star.x < 0) {
+                    star.x = canvas.width;
+                    star.y = Math.random() * canvas.height;
+                }
+            });
+
+            if (gameState !== STATE_PLAYING) return;
+
+            // 2. 隨分數調高難度 (每 500 分敵人基礎速度上升)
+            baseEnemySpeed = 2 + Math.floor(score / 500) * 0.8;
+            enemySpawnInterval = Math.max(25, 60 - Math.floor(score / 300) * 5);
+
+            // 3. 玩家移動控制 (支援 WASD 與 方向鍵)
+            if (keys.w || keys.ArrowUp) player.y -= player.speed;
+            if (keys.s || keys.ArrowDown) player.y += player.speed;
+            if (keys.a || keys.ArrowLeft) player.x -= player.speed;
+            if (keys.d || keys.ArrowRight) player.x += player.speed;
+
+            // 限制玩家在畫布範圍內
+            if (player.x < player.width/2) player.x = player.width/2;
+            if (player.x > canvas.width - player.width/2) player.x = canvas.width - player.width/2;
+            if (player.y < player.height/2) player.y = player.height/2;
+            if (player.y > canvas.height - player.height/2) player.y = canvas.height - player.height/2;
+
+            // 4. 子彈冷卻與發射
+            if (player.shootCooldown > 0) player.shootCooldown--;
+            if (keys.Space && player.shootCooldown === 0) {
+                bullets.push({
+                    x: player.x + 20,
+                    y: player.y,
+                    width: 12,
+                    height: 4,
+                    speed: 8
+                });
+                player.shootCooldown = player.maxCooldown;
+            }
+
+            // 更新子彈位置
+            bullets.forEach((bullet, index) => {
+                bullet.x += bullet.speed;
+                // 超出畫面移除
+                if (bullet.x > canvas.width) bullets.splice(index, 1);
+            });
+
+            // 5. 生成敵人 (從畫面右側隨機高度出現)
+            enemySpawnTimer++;
+            if (enemySpawnTimer >= enemySpawnInterval) {
+                enemySpawnTimer = 0;
+                enemies.push({
+                    x: canvas.width + 30,
+                    y: Math.random() * (canvas.height - 60) + 30,
+                    width: 30,
+                    height: 30,
+                    speed: baseEnemySpeed + Math.random() * 1.5 // 每隻敵人速度有些微隨機差異
+                });
+            }
+
+            // 更新敵人位置與邏輯
+            enemies.forEach((enemy, eIndex) => {
+                enemy.x -= enemy.speed;
+
+                // 敵人撞到玩家
+                if (checkCollision(player, enemy)) {
+                    createExplosion(enemy.x, enemy.y, '#ff0055');
+                    createExplosion(player.x, player.y, '#00ffcc');
+                    enemies.splice(eIndex, 1);
+                    lives--;
+                    if (lives <= 0) {
+                        gameState = STATE_GAMEOVER;
+                    }
+                    return;
+                }
+
+                // 超出左側畫面扣除生命
+                if (enemy.x < -enemy.width) {
+                    enemies.splice(eIndex, 1);
+                    lives--;
+                    if (lives <= 0) {
+                        gameState = STATE_GAMEOVER;
+                    }
+                    return;
+                }
+
+                // 偵測子彈是否擊中敵人
+                bullets.forEach((bullet, bIndex) => {
+                    if (checkCollision(bullet, enemy)) {
+                        createExplosion(enemy.x, enemy.y, '#ffaa00');
+                        enemies.splice(eIndex, 1);
+                        bullets.splice(bIndex, 1);
+                        score += 100; // 擊中得分
+                    }
+                });
+            });
+
+            // 6. 更新爆炸粒子
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    particles.splice(index, 1);
+                }
+            });
+        }
+
+        // --- 畫面繪製 ---
+        function draw() {
+            // 清空畫布
+            ctx.fillStyle = '#050510';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 繪製星空背景
+            ctx.fillStyle = '#ffffff';
+            stars.forEach(star => {
+                ctx.globalAlpha = star.speed / 2.5; // 速度越快越亮，製造層次感
+                ctx.fillRect(star.x, star.y, star.size, star.size);
+            });
+            ctx.globalAlpha = 1.0; // 還原透明度
+
+            // 2. 繪製粒子效果
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 3. 根據狀態繪製主體物件或 UI
+            if (gameState === STATE_PLAYING || gameState === STATE_GAMEOVER) {
+                // 繪製玩家
+                if (lives > 0) player.draw();
+
+                // 繪製子彈 (雷射光束感)
+                ctx.fillStyle = '#ffff00';
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = '#ffff00';
+                bullets.forEach(bullet => {
+                    ctx.fillRect(bullet.x - bullet.width/2, bullet.y - bullet.height/2, bullet.width, bullet.height);
+                });
+                ctx.shadowBlur = 0; // 取消發光以防效能下滑
+
+                // 繪製敵人 (紅色菱形/戰機感)
+                enemies.forEach(enemy => {
+                    ctx.save();
+                    ctx.translate(enemy.x, enemy.y);
+                    ctx.fillStyle = '#ff3366';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, -enemy.height/2); // 上
+                    ctx.lineTo(-enemy.width/2, 0);  // 左
+                    ctx.lineTo(0, enemy.height/2);  // 下
+                    ctx.lineTo(enemy.width/2, 0);   // 右
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                });
+
+                // 頂部 UI 面板 (分數與生命值)
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, 45);
+                ctx.strokeStyle = '#00ffcc';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, 45);
+                ctx.lineTo(canvas.width, 45);
+                ctx.stroke();
+
+                ctx.fillStyle = '#00ffcc';
+                ctx.font = 'bold 16px "Segoe UI", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(`SCORE: ${score}`, 20, 28);
+
+                // 繪製生命條/愛心 (用幾何簡單畫生命格)
+                ctx.textAlign = 'right';
+                ctx.fillText('LIVES: ', canvas.width - 120, 28);
+                for(let i=0; i<3; i++) {
+                    ctx.fillStyle = i < lives ? '#ff0055' : '#333344';
+                    ctx.fillRect(canvas.width - 110 + (i * 30), 14, 20, 16);
+                }
+            }
+
+            // 4. 開始畫面 UI
+            if (gameState === STATE_START) {
+                ctx.fillStyle = 'rgba(5, 5, 20, 0.75)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#00ffcc';
+                ctx.font = 'bold 40px "Segoe UI", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00ffcc';
+                ctx.fillText('SPACE INTERCEPTOR', canvas.width / 2, canvas.height / 2 - 40);
+                
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '20px "Segoe UI", sans-serif';
+                ctx.fillText('按下 ENTER 鍵 開始攔截任務', canvas.width / 2, canvas.height / 2 + 30);
+            }
+
+            // 5. 遊戲結束畫面 UI
+            if (gameState === STATE_GAMEOVER) {
+                ctx.fillStyle = 'rgba(20, 0, 10, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#ff0055';
+                ctx.font = 'bold 50px "Segoe UI", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ff0055';
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 50);
+
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '24px "Segoe UI", sans-serif';
+                ctx.fillText(`最終得分: ${score}`, canvas.width / 2, canvas.height / 2 + 10);
+                
+                ctx.fillStyle = '#00ffcc';
+                ctx.font = '18px "Segoe UI", sans-serif';
+                ctx.fillText('按下 ENTER 鍵 重新挑戰', canvas.width / 2, canvas.height / 2 + 70);
+            }
+        }
+
+        // --- 遊戲主迴圈 ---
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 初始化並啟動
+        initStars();
+        gameLoop();
+    </script>
+</body>
+</html>
